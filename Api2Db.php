@@ -476,6 +476,99 @@ class Api2Db {
 				return true;
 
 			},
+
+			// Функция вывода списка полей для заполнения
+			'defrec' => function( $p ){
+
+				$this->purge_data( $p );
+
+				$p->db['whence'] = "action_defrec";
+
+				if( is_array( $p->module['defrec'] ) ){
+					
+					foreach ($p->module['defrec'] as $keyview => $defrec) {
+
+						if( is_array( $defrec ) ){
+						
+/*							foreach ( $view as $show_field ) {
+								
+								if( $p->module['fields'][$show_field] ){
+									
+									$field = $p->module['fields'][$show_field];
+
+									if( $field['extra'][$keyview] )
+										$extra = $field['extra'][$keyview];
+									
+									elseif( $field['extra']['heads'] )
+										$extra = $field['extra']['heads'];
+									
+									else 
+										$extra = [];
+
+									$fields[1][$show_field]  = [
+										'type' => $field['type'], 
+										'name' => $field['name'], 
+										'key' => $show_field
+									] + (array)$extra;
+									
+													
+									if( isset( $p->r[$show_field] ) ) 
+										$fields[1][$show_field]['val'] = $p->r[$show_field];
+									
+									if( is_callable( $field['convert']['defrec'] ) ){
+										
+										$convertval = $field['convert']['defrec']( $fields[1][$show_field], $p );
+
+											if( isset( $convertval ) )
+												$fields[1][$show_field] = $convertval;
+									
+									}
+								
+								}
+							
+							}
+*/
+
+							if( is_string( $defrec['fields'] ) and $defrec['fields'] == 'all' ){
+								$view = array_keys($p->module['fields']);
+
+								if( is_array( $defrec['exclude'] ) ){
+
+									foreach ($view as $key => $del) 
+										if( in_array($del, $defrec['exclude'] ) )	
+											unset($view[$key]);
+									
+								}
+							}
+		
+							$p->make_row	= $view;
+							$rows 			= $this->make_row( $p );
+							
+							unset($p->make_row);		
+							
+					
+						
+						}else{
+						
+							$p->error = 'view_bad_format';
+							return false;
+						
+						}
+					
+					}
+
+				}else{
+
+					$p->error = 'view_bad_format';
+					return false;
+
+				}
+
+
+				$p->output['rows'] = $rows;
+				return true;
+
+			}, // defrec
 		
 		];
 
@@ -954,6 +1047,12 @@ class Api2Db {
 		$row = array();
 
 		foreach( $p->make_row as $key => $val) {
+
+			// Если надо заполнить по пустым полям, а не из базы
+			if( is_integer( $key ) ){
+				$key = $val;
+				$val = '';
+			}
 
 			if( $p->module['fields'][$key]['type'] != 'search' ) {
 
