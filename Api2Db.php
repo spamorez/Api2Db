@@ -39,7 +39,7 @@ class Api2Db {
 		$this->config  = array_replace_recursive( $config, $params['config'] );
 		$this->modules = $params['modules'];
 		$this->names   = $params['names'];
-		$this->errors   = $params['errors'];  
+		$this->errors  = $params['errors'];  
 
 		$this->extend_modules();
 
@@ -92,6 +92,7 @@ class Api2Db {
 
 		}
 
+
 		$module_structure = [
 			'join' 		=> '',
 			'groupby'	=> '',
@@ -99,9 +100,12 @@ class Api2Db {
 		];
 
 		
-		$p->module 				= array_replace_recursive( $module_structure, $this->modules[$p->input['module']] );
+		$p->module	= array_replace_recursive( $module_structure, $this->modules[$p->input['module']] );
+
+
 		$p->module['modname']	= $p->input['module'];
 		$p->action 				= $p->input['action'];
+
 
 
 		if( !in_array( $p->action, (array)$p->module['actions']) ){
@@ -124,6 +128,8 @@ class Api2Db {
 
 	final public  function execute( $p ) {
 
+
+
 		if( $this->init ){
 
 			$this->output = [];
@@ -141,7 +147,9 @@ class Api2Db {
 
 			$p  = (object)array_replace_recursive( $p_structure, $p );
 
+
 			$this->make_put_values( $p );
+
 
 			if( !$this->before_request($p) )
 				return $this->return_error( $p ); 
