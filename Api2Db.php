@@ -1511,7 +1511,3 @@ class Api2Db {
 
 	}
 }
-
-echo 'test';
-		
-	
