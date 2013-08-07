@@ -489,45 +489,7 @@ class Api2Db {
 					foreach ($p->module['defrec'] as $keyview => $defrec) {
 
 						if( is_array( $defrec ) ){
-						
-/*							foreach ( $view as $show_field ) {
-								
-								if( $p->module['fields'][$show_field] ){
-									
-									$field = $p->module['fields'][$show_field];
-
-									if( $field['extra'][$keyview] )
-										$extra = $field['extra'][$keyview];
-									
-									elseif( $field['extra']['heads'] )
-										$extra = $field['extra']['heads'];
-									
-									else 
-										$extra = [];
-
-									$fields[1][$show_field]  = [
-										'type' => $field['type'], 
-										'name' => $field['name'], 
-										'key' => $show_field
-									] + (array)$extra;
-									
-													
-									if( isset( $p->r[$show_field] ) ) 
-										$fields[1][$show_field]['val'] = $p->r[$show_field];
-									
-									if( is_callable( $field['convert']['defrec'] ) ){
-										
-										$convertval = $field['convert']['defrec']( $fields[1][$show_field], $p );
-
-											if( isset( $convertval ) )
-												$fields[1][$show_field] = $convertval;
-									
-									}
-								
-								}
-							
-							}
-*/
+					
 
 							if( is_string( $defrec['fields'] ) and $defrec['fields'] == 'all' ){
 								$view = array_keys($p->module['fields']);
@@ -546,7 +508,6 @@ class Api2Db {
 							
 							unset($p->make_row);		
 							
-					
 						
 						}else{
 						
@@ -1399,10 +1360,10 @@ class Api2Db {
 				$value = implode( $implode, $request[ $sqlElem ]['by']);
 
 				if( $request[ $sqlElem ]['order'] )
-					$order = ' ASC';
+					$order = $request[ $sqlElem ]['order'];
 
 				if( $value )
-					$toSql .= " $prefix " . $value . $order;
+					$toSql .= " $prefix " . $value .' '. $order;
 
 				continue;
 
