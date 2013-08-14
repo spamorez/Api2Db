@@ -1359,8 +1359,13 @@ class Api2Db {
 
 				$value = implode( $implode, $request[ $sqlElem ]['by']);
 
+				if( !empty( $p->module['fields'][ $value ]['key'] ) )
+					$value = $p->module['fields'][ $value ]['key'];
+
 				if( $request[ $sqlElem ]['order'] )
 					$order = $request[ $sqlElem ]['order'];
+				else
+					$order = 'ASC';
 
 				if( $value )
 					$toSql .= " $prefix " . $value .' '. $order;
