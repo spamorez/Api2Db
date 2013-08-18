@@ -137,6 +137,7 @@ class Api2Db {
 			$p_structure = [
 				'local'		=> [],
 				'output'	=> ['code' => 'success'],
+				'names' 	=> &$this->names,
 				'input' 	=> [
 					'search' => [], 
 					'autoSearch' => '', 
