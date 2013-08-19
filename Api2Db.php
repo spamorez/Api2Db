@@ -1033,15 +1033,15 @@ class Api2Db {
 					// Конвертация вывода
 					if( isset( $row[$key]['val'] ) and is_callable( $this->convert_fields[ $p->module['fields'][$key]['convert'][$p->action] ] ) ){
 						
-						$convert_val = $this->convert_fields[ $p->module['fields'][$key]['convert'][$p->action] ]( $row[$key]['val'], $p);
-					
+						$convert_val = $this->convert_fields[ $p->module['fields'][$key]['convert'][$p->action] ]( $row[$key]['val'],  clone $p);
+						
 					}elseif( 
 						isset( $row[$key]['val'] ) 
 						and isset( $p->module['fields'][$key]['convert']['*'] ) 
 						and is_callable( $this->convert_fields[ $p->module['fields'][$key]['convert']['*'] ] ) 
 					){
 						
-						$convert_val = $this->convert_fields[ $p->module['fields'][$key]['convert']['*'] ]( $row[$key]['val'], $p);
+						$convert_val = $this->convert_fields[ $p->module['fields'][$key]['convert']['*'] ]( $row[$key]['val'], clone $p);
 
 					
 					}else{
@@ -1402,6 +1402,16 @@ class Api2Db {
 			$key = $field['key'];
 
 		return $key;
+	}
+
+	final public function set_mem( $place, $line = false ){
+
+
+		if( $line )
+			$line = '- string ' . $line;
+
+		$current_mem = memory_get_usage();
+		$this->storage['debug']['mem'][$place] =  (($current_mem/1024)/1024) . " mb " . $line ;
 	}
 
 	static function put_values( $sqlString, $values, $escape = true ){
