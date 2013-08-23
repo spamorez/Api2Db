@@ -4,19 +4,16 @@ require_once( dirname(__FILE__) . '/Api2Db_Functions.php');
 require_once( dirname(__FILE__) . '/Api2Db_Storage.php');
 require_once( dirname(__FILE__) . '/Api2Db_Converts.php');
 require_once( dirname(__FILE__) . '/Api2Db_Actions.php');
+require_once( dirname(__FILE__) . '/Api2Db_Db.php');
 
 
 class Api2Db {
 
-	public  $config		= []; 		// Конфигурация
 	public  $initErrors = []; 		// Ошибки инициализации
 	public  $storage 	= [];		// Хранилище
 	private $output 	= [];		// Вывод данных
-	private $action; 				// текущее действие
-	private $currentConnectionName; // Имя текущего соединения
-	private $connections;			// Соединения с БД
 	private $init;					// прошла ли инициализация
-	private $checkStructure;		// Структура модуля
+	public $db;
 
 
 
@@ -30,9 +27,12 @@ class Api2Db {
 		];
 
 		$this->storage 	= Api2Db_Storage::Instance();
-		$this->storage->clear( $this );
+
 		$params 		= array_replace_recursive( $def_params, $params );
 		$this->init 	= true;
+		
+		$this->storage->clear( $this );
+
 
 		if( isset( $params['convert_fields'] ) )
 			$this->convert_fields = $params['convert_fields'];
@@ -42,8 +42,10 @@ class Api2Db {
 		$this->storage->add_modules( $params['modules'] );
 		$this->storage->add_names( $params['names'] );
 		$this->storage->add_errors( $params['errors'] );
-
-
+		
+		$this->db 		= Api2Db_Db::Instance();
+		$this->db->clear( $this );
+		$this->db->connect();
 
 		if( get_parent_class( $params['functions'] ) == 'Api2Db_Functions' )
 			$this->functions = $params['functions'];
@@ -65,11 +67,6 @@ class Api2Db {
 
 
 	}
-
-/*	final public function __destruct(){
-
-		$this->storage->clear( $this );
-	}*/
 
 
 	public function before_request($p) {
@@ -237,144 +234,4 @@ class Api2Db {
 	
 	}
 
-
-	private function db_connect( $p ){
-
-		$connectionName = ( isset( $p->module['connect'] ) ) ? $p->module['connect'] : $this->storage->get_config()['db']['defaultConnection'];
-		$connection 	= $this->storage->get_config()['db']['connections'][$connectionName];
-
-		// Создание коннекта
-		if( !$this->connections[$connectionName]['connect'] ){
-
-			try{
-
-				$this->connections[$connectionName]['connect'] = new PDO ( 
-					'mysql:host=' . $connection['server'] . ';dbname=' . $connection['database'], $connection['user'], $connection['password'],
-					[
-						PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
-					]
-				);
-				
-
-				$this->connections[$connectionName]['currentDB'] 					= $connection['database'];
-				$this->currentConnectionName										= $connectionName;
-				$this->currentConnection											= &$this->connections[$connectionName]['connect'];
-				$this->storage->push_debug_db("create connect $connectionName");
-
-
-			}
-
-			catch( PDOException $e ){
-			
-				$p->error 	= 'dberror';
-
-				$this->storage->push_debug_db( [
-					'error' => ['message' => $e->getMessage(), 'code' => $e->getCode()],
-					'text' 	=> "Failed connection to $connectionName"
-				]);
-
-
-				return fasle;
-			}
-
-		}
-
-		// Смена коннекта
-		if( $this->connections[$connectionName]['connect'] and $this->currentConnectionName != $connectionName ){
-			$this->currentConnectionName = $connectionName;
-			$this->currentConnection 	 = &$this->connections[$connectionName]['connect'];
-		}
-		
-
-		/*		
-		// Выбор базы данных
-		if( $this->config['db']['connections'][$connectionName]['currentDB'] != $this->params->module['database'] && $this->params->module['database'] ){
-
-
-			
-			$result = db_query( $p, 'use database `' . $this->params->module['database'] . '`' );
-
-
-			if($result->ret['code'] == 'success')
-				$this->config['db']['connections'][$connectionName]['currentDB'] = $this->params->module['database'];
-			
-			else{
-
-				$this->params->ret['code'] 	= 'failed';
-				$this->params->ret['error'] = 'dberror';
-
-				//$this->params->storage->push( "Failed change database to {$this->params->module['database']} in $connectionName", 'debug->database->' . $this->params->query_count . "->error" );
-			
-			}
-		}
-		*/
-		return true;
-	}
-
-
-	final public function db_query($p, $sql = false, $type = 'select' ){
-
-		if(!$this->currentConnectionName)
-			$this->db_connect( $p );
-
-		if(!$sql)
-			$sql = $p->db['lastQuery'];
-
-		$sql 	= $this->currentConnection->prepare( $sql );
-		$start 	= microtime(true);
-
-		$sql->execute();
-		
-		$time = round( microtime(true)-$start, 2 );
-
-		// Так написал, потому что так $sql->errorInfo()[0][0] не дадут обратиться, 
-		// как обратиться нормально?
-		$errsql = $sql->errorInfo();
-
-
-		$log = [
-			'sql' 			=> $sql->queryString,
-			'connection' 	=> $this->currentConnectionName,
-			'time' 			=> $time,
-			'code' 			=> $errsql[0],
-			'whence'		=> $p->db['whence']
-		];
-
-		$p->db['lastResult'] = [];
-
-		if($errsql[0] == '00000'){
-			
-			switch ($type) {
-
-				case 'select':
-					$p->db['lastResult'] = $sql->fetchAll( PDO::FETCH_ASSOC );
-				break;
-				
-				case 'insert':
-					$p->db['lastInsertId'] = $this->connections[$this->currentConnectionName]['connect']->lastInsertId();
-				break;
-
-			}
-
-		
-		}else{
-
-			$p->error = 'dberror';
-
-			$log['error'] = $errsql[2];
-			
-		}
-
-		$this->storage->push_debug_db( $log );
-
-		if( isset( $log['error'] ) )
-			return false;
-		else
-			return true;
-	}
-
 }
-
-
-
-

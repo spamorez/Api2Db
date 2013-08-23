@@ -8,6 +8,7 @@ class Api2Db_Actions
 
 		$this->Api2Db 	= $Api2Db;
 		$this->storage 	= Api2Db_Storage::Instance();
+		$this->db 	= Api2Db_Db::Instance();
 
 	}
 
@@ -17,13 +18,10 @@ class Api2Db_Actions
 	{
 		
 		$this->purge_data( $p );
-
-		$p->db['whence']			= "action_list";
-		$p->db['request']['query']	= 'select';
-
-
 		$this->make_heads( $p );
 		$this->make_filter( $p );
+
+		$p->db['request']['query']	= 'select';
 
 		if( !$this->is_requare( $p ) )
 			return false;
@@ -52,11 +50,15 @@ class Api2Db_Actions
 		if( !$this->make_sql_str( $p ) )
 			return false;
 
-
 		// Совершаем запрос
-		if( !$this->Api2Db->db_query( $p ) )
+		$result = $this->db->select( $p->db['lastQuery'], 'action_list' );
+		
+		if( empty( $result ) ){
+			$p->error = 'dberror';
 			return false;
-
+		}else{
+			$p->db['lastResult'] = $result;
+		}
 
 
 		$p->output['rows'] = $this->make_rows( $p );
@@ -71,7 +73,6 @@ class Api2Db_Actions
 					
 		$this->purge_data( $p );
 
-		$p->db['whence']			= "action_view";
 		$p->db['request']['query']	= 'select';
 		$p->db['request']['limit']  = '1';
 
@@ -89,14 +90,20 @@ class Api2Db_Actions
 		if( !$this->make_fields( $p ) ) 
 			return false;
 
-
 		// Формируем sql запрос
 		if( !$this->make_sql_str( $p ) )
 			return false;
 
 		// Совершаем запрос
-		if( !$this->Api2Db->db_query( $p ) )
+		$result = $this->db->select( $p->db['lastQuery'], 'action_view' );
+		
+		if( empty( $result ) ){
+			$p->error = 'dberror';
 			return false;
+		}else{
+			$p->db['lastResult'] = $result;
+		}
+
 
 		$rows = $this->make_rows( $p );
 
@@ -185,21 +192,26 @@ class Api2Db_Actions
 			'where' 	=> $p->db['request']['where'],
 		];
 
-		//print_r($p->db);
 
 		if( !$this->make_sql_str( $p, $request ) ) 
 			return false;
 
-		if( !$this->Api2Db->db_query( $p ) )
-			return false;
+
+		// Совершаем запрос
+		$result = $this->db->select( $p->db['lastQuery'], 'get_records' );
 		
+		if( empty( $result ) ){
+			$p->error = 'dberror';
+			return false;
+		}
+
 
 		$count 		= 0;
 		$records 	= 0;
 
-		if( !empty( $p->db['lastResult'] ) ){
+		if( !empty( $result ) ){
 		
-			foreach( $p->db['lastResult'] as $rows_c ) {
+			foreach( $result as $rows_c ) {
 				$records += $rows_c['count'];
 				$count++;
 			}
@@ -256,7 +268,7 @@ class Api2Db_Actions
 		$p->putvalues = $putvalues;
 
 
-		//print_r($putvalues);
+
 	}
 
 
@@ -798,11 +810,10 @@ class Api2Db_Actions
 
 				$sql = $this->Api2Db->functions->put_values( $p->module['fields'][$key]['options'], $p->putvalues);
 
-				$p->db['whence'] = 'create_options_to_key_'.$key;
 
-				$this->Api2Db->db_query( $p, $sql );
+				$result = $this->db->select( $sql, 'create_options_to_key_'.$key );
 
-				if( !empty( $p->db['lastResult'] ) )
+				if( !empty( $result ) )
 					$options = $p->db['lastResult'];
 
 
