@@ -122,6 +122,70 @@ class Api2Db_Actions
 
 	}
 
+
+	final public function action_add( $p ){
+
+		$this->purge_data( $p );
+
+		if( $p->module['defrec']['single'] ){
+
+			$p->values = $p->input['add'];
+
+			$p->db['request']['query']	= 'insert';
+
+
+			foreach( $p->module['fields'] as $field => $fieldval ) {
+
+				if( !empty( $fieldval['convert'] ) ){
+
+					$convert_name = $fieldval['convert']['add'];
+
+					if( !empty( $p->input[$field]['add'] ) && !empty($convert_name) ){
+
+						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
+							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[$field]['add']  );
+
+						if( isset( $convertval ) ) {
+				   			$p->values[$field] = $convertval;
+				   		}
+
+					}
+				}
+			}
+				
+			if( !$this->check_add_row( $p, $p->values ) )
+				return false;
+
+			if( !$this->make_set( $p ) )
+				return false;
+
+			if( !$this->make_sql_str( $p ) )
+				return false;
+
+			
+			// Совершаем запрос
+			$id = $this->db->insert( $p->db['lastQuery'], 'action_add' );
+			
+			if( empty( $id ) ){
+
+				$p->error = 'dberror';
+				return false;
+
+			}else{
+
+				$p->output['recordId'] = $id;
+				return true;
+		
+			}
+
+		}else{
+			$p->error = 'defrec_single_not_define';
+			return false;
+		}
+
+		return true;
+	}
+
 	final public function action_defrec( $p ){
 
 		$this->purge_data( $p );
@@ -176,6 +240,161 @@ class Api2Db_Actions
 	} // defrec
 
 
+	private function check_add_row( $p, $values ){
+
+		$errors = [];
+
+		// Проверка полей
+		foreach( $p->module['fields'] as $field => $fieldval ) {
+
+			if( empty( $values[$field] ) )
+				$value = '';
+			else
+				$value = $values[$field];
+
+			$arg = [
+				'field'  => $field, 
+				'value'  => $value, 
+				'edit' 	 => ( empty( $p->module['fields'][$field]['edit'] ) ) ? 'no' : 'yes', 
+				'values' => (array)$values 
+			];
+
+
+			if( isset($p->module['fields'][$field]['check']['add']) )
+					$arg['checks'] = $p->module['fields'][$field]['check']['add'];
+
+
+			$fld = clone $p;
+
+			unset($fld->ret);
+			unset($fld->errors);
+
+			
+			if( !$this->check_field_by_value( $fld, $arg ) )
+				$errors[$field]['errors'] = $fld->errors;
+
+		}
+
+
+		if( !empty( $errors ) ) {
+
+			$p->output['errors'] = $errors;
+			return false;
+		
+		}else{
+			return true;
+		}
+
+	}
+
+
+	// Проверка на значений полей
+	private function check_field_by_value( $p, $arg ){
+
+		$err = [];
+
+		// Запрет на редактирование полей, если явно не установлен признак
+		if( !empty( $arg['value'] ) && $arg['edit'] != 'yes' ){
+			$p->errors	= [ 'error' => 'denied_edit_key', 'val' => $arg['value'] ];
+
+			return false;
+		}
+
+		// Проверка пустая
+		if( empty( $arg['checks'] ) ) {
+			$arg['checks'] = [];	
+		}
+
+
+		if( $p->module['fields'][$arg['field']]['type'] == 'hidden' )
+			return true;
+
+
+		if( $arg['edit'] == 'yes' ){
+
+			if( !isset( $arg['field'] ) )
+				$err[] = 'no field';
+
+			if( !is_array( $arg['values'] ) )
+				$err[] = 'bad param values';
+
+			if( empty( $err ) ){
+
+
+				foreach ( $arg['checks'] as $type_check => $type_check_el ){
+					
+					if( in_array( $type_check, ['single','sql'] ) ){
+
+
+
+						foreach ( $type_check_el as $key => $check ){
+
+							if( $type_check == 'sql' ){
+							
+								$check_key 	= $key;
+
+								$p->putvalues['this']['value'] = $arg['value'];
+
+								$arg['sql'] = $this->Api2Db->functions->put_values( $check, $p->putvalues );
+
+
+							
+							}else{
+								
+								$check_key = $check;
+							
+							}
+
+							if( method_exists( $this->Api2Db->checks,  $type_check . "_" . $check_key ) ){
+
+								$result = $this->Api2Db->checks->{ $type_check . "_" . $check_key }($arg);
+
+								if( !empty( $result['error'] ) ){
+								
+									$result['check_type']  = $type_check . "_" . $check_key;
+									$err[] = $result;
+								
+								}
+
+							}else{
+
+								$err[] = [ 'error' => 'bad_check_key', 'val' => "simple_" . $check_key  ];
+							
+							}
+
+						}//endforeach;
+					}
+
+				}
+
+				if( empty( $err ) ){
+					return true;
+				}else{
+
+					$p->errors = $err;
+					return false;
+				}
+
+
+			}else{
+				$p->errors = [ 'error' => 'bad_in_param','val' => $err ];
+				return false;
+			}
+		
+		}else{
+		
+			if( !empty( $arg['value']  ) ) {
+
+				$p->errors = [ 'error' => 'readonly' ];	
+				return false;
+			
+			}
+		
+		}
+		
+		return true;
+	}
+
 	private function purge_data( $p ){
 
 	}
@@ -229,6 +448,39 @@ class Api2Db_Actions
 		return true;
 	}
 
+
+	final public function make_set( $p ){
+
+		if( !empty( $p->values ) ){
+
+			foreach( $p->values as $key => $val ){
+
+				$field = $p->module['fields'][$key];
+
+				if( !empty( $field ) ){
+
+					if( isset( $field['key'] ) ){
+
+						$key = $field['key'];
+						$ex_key = explode(".", $key);
+
+						if( count( $ex_key ) == 2 )
+							$key = $ex_key[1];
+						
+					}
+
+					$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
+				
+				}
+			}
+			
+			$p->db['request']['set'] = $fields_sql;
+
+		}
+
+		return true;
+	}
+
 	final public function make_put_values( $p ){
 
 		$putvalues = [];
@@ -272,9 +524,7 @@ class Api2Db_Actions
 	}
 
 
-	public function extend_make_where( $p ){
-		return true;
-	}
+
 
 	private function is_requare( $p ){
 
@@ -298,6 +548,10 @@ class Api2Db_Actions
 		
 		}
 
+		return true;
+	}
+
+	public function extend_make_where( $p ){
 		return true;
 	}
 
@@ -337,12 +591,12 @@ class Api2Db_Actions
 
 
 				if( !empty( $p->input['search']['autoSearch'] ) ){
-					$val 		= $p->input['search']['autoSearch'];
+					$val 		= $this->Api2Db->functions->sql_escape( $p->input['search']['autoSearch'] );
 					$keyField	= 'autoSearch';
 				}
 
 				elseif( isset( $p->input['search'][$keyField] ) )
-					$val = $p->input['search'][$keyField];
+					$val = $this->Api2Db->functions->sql_escape( $p->input['search'][$keyField] );
 
 				
 
@@ -629,10 +883,10 @@ class Api2Db_Actions
 	private function make_row( $p ){
 
 		if( !isset( $p->make_row  ) )
-			return array();
+			return [];
 		
 		
-		$row = array();
+		$row = [];
 
 		foreach( $p->make_row as $key => $val) {
 
@@ -647,10 +901,10 @@ class Api2Db_Actions
 				$row[$key]['key'] = $key;
 				
 				// квотируем левое
-				$quot = array(
+				$quot = [
 					'"' => '&quot;',
 					"'" => '&apos;'
-				);	
+				];	
 
 				$row[$key]['val'] = strtr( $val, $quot );
 			
@@ -699,7 +953,7 @@ class Api2Db_Actions
 
 	private function make_head_row( $key, $p ){
 
-		$row = array();
+		$row = [];
 		
 		if( isset( $p->module['fields'][$key] ) ) {
 
@@ -744,7 +998,7 @@ class Api2Db_Actions
 
 	private function make_extend_row( $key, $p ){
 
-		$row = array();
+		$row = [];
 
 		
 		if( isset( $p->module['fields'][$key] ) ) {
@@ -783,7 +1037,7 @@ class Api2Db_Actions
 
 	private function make_key_options( $key, $p ){
 		
-		$options = array();
+		$options = [];
 
 		if( isset( $p->module['fields'][$key]['options'] )  ) {
 		
@@ -826,7 +1080,7 @@ class Api2Db_Actions
 
 	private function make_heads( $p ){
 
-		$heads = array();
+		$heads = [];
 
 		if( isset( $p->module['fields'] ) && is_array( $p->module['fields'] ) ) 
 
@@ -842,7 +1096,7 @@ class Api2Db_Actions
 
 	private function make_filter( $p ){
 
-		$search = array();
+		$search = [];
 
 		if( isset( $p->module['fields'] ) && is_array( $p->module['fields'] ) ) {
 
@@ -931,6 +1185,17 @@ class Api2Db_Actions
 			];
 
 			$requred = [ 'set', 'table' ];
+		
+		}elseif( $request['query'] == 'insert' ) {
+			
+			$structure	 = [
+				'table'		=> 'into',
+				'set'		=> 'set',
+
+			];
+
+			$requred = [ 'set', 'table' ];
+		
 		
 		}else{
 			

@@ -3,6 +3,7 @@
 require_once( dirname(__FILE__) . '/Api2Db_Functions.php');
 require_once( dirname(__FILE__) . '/Api2Db_Storage.php');
 require_once( dirname(__FILE__) . '/Api2Db_Converts.php');
+require_once( dirname(__FILE__) . '/Api2Db_Checks.php');
 require_once( dirname(__FILE__) . '/Api2Db_Actions.php');
 require_once( dirname(__FILE__) . '/Api2Db_Db.php');
 
@@ -13,7 +14,7 @@ class Api2Db {
 	public  $storage 	= [];		// Хранилище
 	private $output 	= [];		// Вывод данных
 	private $init;					// прошла ли инициализация
-	public $db;
+	public  $db;
 
 
 
@@ -23,7 +24,8 @@ class Api2Db {
 		$def_params = [
 			'actions' 	=> '',
 			'converts' 	=> '',
-			'functions' => ''
+			'functions' => '',
+			'checks'	=> ''
 		];
 
 		$this->storage 	= Api2Db_Storage::Instance();
@@ -57,7 +59,13 @@ class Api2Db {
 			$this->converts = $params['converts'];
 		else
 			$this->converts = new Api2Db_Converts( $this->functions );
-		
+
+
+		if( get_parent_class( $params['checks'] ) == 'Api2Db_Checks' )
+			$this->checks = $params['checks'];
+		else
+			$this->checks = new Api2Db_Converts( $this->functions );
+
 
 		if( get_parent_class( $params['actions'] ) == 'Api2Db_Actions' )
 			$this->actions = $params['actions'];

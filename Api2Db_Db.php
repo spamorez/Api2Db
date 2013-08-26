@@ -167,6 +167,18 @@ class Api2Db_Db
 
 	}
 
+
+	final public function insert( $sql, $whence ){
+
+		$sql = $this->execute( $sql, $whence );
+
+		if( !empty( $sql ) )
+			return $this->currentConnection->lastInsertId();
+		else
+			return false;
+
+	}
+
 	final public function delete( $sql, $whence ){
 
 		if( $this->execute( $sql, $whence ) )
