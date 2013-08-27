@@ -36,6 +36,9 @@ class Api2Db_Checks
 
 	final public function sql_unique( $arg ){
 
+		if( empty( $arg['value'] ) )
+			return true;
+
 
 		$sql = $this->db->execute( $arg['sql'], 'sql_unique_' . $arg['field'] );
 

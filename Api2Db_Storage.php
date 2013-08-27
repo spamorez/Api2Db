@@ -104,6 +104,16 @@ class Api2Db_Storage
 
 	}
 
+
+	final public function is_module( $name_mod ){
+		
+		if( isset( $this->modules[ $name_mod ] ) )
+			return true;
+		else
+			return false;
+		
+	}
+
 	final public function get_modules(){
 		return $this->modules;
 	}

@@ -86,58 +86,6 @@ class Api2Db {
 	}
 
 
-	private function do_request( $p ) {
-
-		if( !in_array( 'module', array_keys( $p->input ) ) ){
-
-			$p->error = "bad_param_module";
-			return false;
-
-		}
-
-		if( !in_array( 'action', array_keys( $p->input ) ) ){
-
-			$p->error = "bad_param_action";
-			return false;
-
-		}
-
-
-		if( !method_exists( $this->actions, 'action_' . $p->input['action'] ) )
-		{
-			$p->error = "action_not_exist";
-			return false;
-		}
-
-
-		
-		if( !in_array( $p->input['module'], array_keys( $this->storage->get_modules() ) ) ){
-
-			$p->error = "module_not_exist";
-			return false;
-
-		}
-
-		
-		$p->module				= $this->storage->get_module( $p->input['module'] );
-		$p->module['modname']	= $p->input['module'];
-		$p->action 				= $p->input['action'];
-
-
-		if( !in_array( $p->action, (array)$p->module['actions']) ){
-
-			$p->error = "action_not_available";
-			return false;
-
-		}
-
-
-		if( !$this->actions->{ 'action_'.$p->action }( $p ) )
-			return false;
-
-
-		return true;
-	}
 
 
 
@@ -186,7 +134,7 @@ class Api2Db {
 
 			$this->actions->make_put_values( $p );
 
-			if( !$this->do_request($p) ) 	   	
+			if( !$this->actions->execute( $p ) ) 	   	
 				return $this->return_error( $p );
 			
 			if( !$this->after_request($p) ) 
