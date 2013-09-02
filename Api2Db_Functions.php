@@ -4,21 +4,33 @@
 class Api2Db_Functions
 {
 
+	final public function __construct()
+	{
+		$this->storage 		= Api2Db_Storage::Instance();
+		$this->db 			= Api2Db_Db::Instance();
+	}
 
 	// подстановка значений в sql запрос
-	final public function put_values( $sqlString, $values, $escape = true ){
+	final public function put_values( $string, $values, $escape = true ){
 
-		if( !is_string( $sqlString ) )
+		if( !is_string( $string ) )
 			return false;
 
 		if( !is_array( $values ) )
-			return $sqlString;
+			return $string;
 
 		if( !is_bool( $escape ) )
 			$escape = true;
 
 
-		$makeRecurcivePath = function( $values, $path = '', $paths = [], $escape = true) use ( &$makeRecurcivePath ){
+		$arrayPathToValue = $this->make_recurcive_path( $values );
+
+		return strtr($string, $arrayPathToValue);
+	}
+
+	final public function make_recurcive_path( $values, $path = '', $paths = [], $escape = true ){
+
+		if( is_array( $values ) ){
 
 			foreach ( $values as $key => $value ) {
 
@@ -28,12 +40,14 @@ class Api2Db_Functions
 					$add = $key;
 
 				if( is_array( $value ) ){
-				
-					$paths = array_merge( $paths, $makeRecurcivePath( $value, $add, $paths ) );
-				
-				}else if( is_string( $value ) ){
 
-					if( $escape )
+					$paths[":" . $add . "->array"] = $value;
+				
+					$paths = array_merge( $paths, $this->make_recurcive_path( $value, $add, $paths ) );
+				
+				}else if( is_string( $value ) || is_integer( $value ) ){
+
+					if( $escape && is_string( $value ) )
 						$value = addcslashes( trim( $value ), '\'"' );
 
 					$paths[":" . $add] = $value;
@@ -41,11 +55,10 @@ class Api2Db_Functions
 			}
 			
 			return $paths;
-		};
 
-		$arrayPathToValue = $makeRecurcivePath($values);
-
-		return strtr($sqlString, $arrayPathToValue);
+		}else{
+			return [];
+		}
 	}
 
 

@@ -103,15 +103,17 @@ class Api2Db {
 				'input' 	=> [
 					'search' => [], 
 					'autoSearch' => '', 
-					'rowheads' => 0
+					'rowheads' => 0,
+					'heads' => 0,
 				],
 				'before_request_break' => false
 			];
 
 			$p  = (object)array_replace_recursive( $p_structure, $p );
 
+			$p->putvalues['input'] = &$p->input;
+			$p->putvalues['local'] = &$p->local;
 
-			$this->actions->make_put_values( $p );
 
 
 			if( !$this->before_request($p) )
@@ -132,7 +134,6 @@ class Api2Db {
 			}
 
 
-			$this->actions->make_put_values( $p );
 
 			if( !$this->actions->execute( $p ) ) 	   	
 				return $this->return_error( $p );

@@ -27,7 +27,7 @@ class Api2Db_Checks
 	}
 
 	final public function single_require( $arg ){
-		
+
 		if( empty( $arg['value'] ) )
 			return array( 'error' => 'require' );
 		else

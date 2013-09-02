@@ -148,7 +148,7 @@ class Api2Db_Db
 
 		$sql = $this->execute( $sql, $whence );
 
-		if( isset( $sql ) )
+		if( !empty( $sql ) )
 			return $sql->fetchAll( PDO::FETCH_ASSOC );
 		else
 			return false;

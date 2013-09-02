@@ -14,17 +14,23 @@ class Api2Db_Actions
 
 	final public function execute( $p ){
 
+
+
 		$this->purge_data( $p );
 
 		if( !in_array( 'module', array_keys( $p->input ) ) ){
-
+			
+			$p->output['request'] = $p->input;
 			$p->error = "bad_param_module";
 			return false;
 
 		}
 
+
+
 		if( !in_array( 'action', array_keys( $p->input ) ) ){
 
+			$p->output['request'] = $p->input;
 			$p->error = "bad_param_action";
 			return false;
 
@@ -33,6 +39,7 @@ class Api2Db_Actions
 		
 		if( !$this->storage->is_module( $p->input['module'] ) ){
 
+			$p->output['request'] = $p->input;
 			$p->error = "module_not_exist";
 			return false;
 
@@ -50,17 +57,162 @@ class Api2Db_Actions
 		}
 
 
-		if( !in_array( $p->action, (array)$p->module['actions']) ){
+		if( !in_array( $p->action, (array)array_keys( $p->module['actions'] ) ) ){
 
 			$p->error = "action_not_available";
 			return false;
 
 		}
 
-		return $this->{ 'action_' . $p->action }( $p );
+
+
+		if( $this->{ 'action_' . $p->action }( $p ) ){
+
+
+
+			$this->make_extra_info( $p );
+
+			if( isset( $p->module['submodules'] ) ){
+				
+				$this->make_submodules( $p );
+			}
+
+//			$p->output['request'] = $p->input;
+
+			return true;
+		}else
+			return false;
+	}
+
+
+
+	private function make_submodules( $p_parent ){
+
+		foreach( $p_parent->module['submodules'] as $keymod => $submod ){
+			
+			if( is_array( $submod[ $p->action ] ) )
+				$p_parent->output['submodules'][ $keymod ] = $this->make_submodule( $submod[ $p->action ], $p_parent );
+
+		}
 
 	}
 
+	private function make_submodule( $request, $p_parent ){
+
+
+		$p = (object)[ 
+			'parent' => clone $p_parent,
+			'output'	=> ['code' => 'success'],
+			'input' 	=> [
+				'search' => [], 
+				'autoSearch' => '', 
+				'rowheads' => 0,
+				'heads' => 0,
+			],
+
+		];
+
+
+
+		$p->local = &$p->parent->local;
+
+		foreach ( $request as $key => $value) 
+			if( is_string( $value ) )
+				$p->input[ $key ] = $this->Api2Db->functions->put_values( $value, [ 'input' => $p_parent->input ] );
+			else
+				$p->input[ $key ] = $value;
+
+
+		$p->putvalues['input'] = &$p->input;
+		$p->putvalues['local'] = &$p_parent->local;
+
+
+		if( !$this->execute( $p ) ){
+
+			$p->output['code']	= 'failed';
+			$p->output['error'] = $p->error;
+			$p->output['request'] = $p->input;
+
+			if(  $this->storage->get_error( $p->error )  )
+				$p->output['text'] = $this->storage->get_error( $p->error );
+		
+		}
+
+		return $p->output;
+
+	}
+
+	private function make_extra_info( $p ){
+
+
+		$make = function(&$val, $key, $p){
+
+			if( is_string( $val ) ){
+
+				$val = $this->Api2Db->functions->put_values( $val, $p->putvalues);
+
+				switch ( $key ) {
+					case 'options':
+
+
+
+						$result = $this->db->select( $val, 'create_options_in_extra_to_key_'.$key );
+
+						if( !empty( $result ) )
+							$val = $result;
+
+						break;
+					
+					case 'action':
+						$val = $this->Api2Db->functions->put_values( $val, $p->putvalues);
+						break;
+				}
+			
+			}
+
+		};
+
+
+		$call_submodule_recursive = function( $arr, $p ) use ( &$call_submodule_recursive ) {
+
+			if( is_array( $arr ) ){
+
+				foreach ($arr as $key => $val) {
+					
+
+					if( isset( $val['type'] ) ){
+
+						if( $val['type'] == 'subquery' && is_array( $val[ $p->action ] ) ){
+							
+							
+							$arr[$key] = $this->make_submodule( $val[ $p->action ], $p );
+
+						}
+
+					}else{
+						$arr[$key] = $call_submodule_recursive( $arr[$key], $p );
+					}
+
+				}
+
+
+			}
+
+			return $arr;
+
+		};
+
+
+		if( !empty( $p->module['extra_info'][ $p->action ] ) ){
+		
+			array_walk_recursive( $p->module['extra_info'][ $p->action ], $make, $p );
+
+			$p->module['extra_info'][ $p->action ] = $call_submodule_recursive( $p->module['extra_info'][ $p->action ], $p );
+
+			$p->output['extra'] = $p->module['extra_info'][ $p->action ];
+		}
+
+	}
 
 
 	final public function action_list( $p )
@@ -86,11 +238,13 @@ class Api2Db_Actions
 		if( !$this->get_records( $p ) )
 			return false;
 
+		$p->output['records'] = $p->records;
+
 		// Нет записей
 		if(  $p->records == 0 )
 			return true;
 
-		$p->output['records'] = $p->records;
+
 
 		// Формируем limit
 		if( !$this->make_limit( $p ) ) 
@@ -173,11 +327,29 @@ class Api2Db_Actions
 
 	final public function action_add( $p ){
 
-		if( $p->module['defrec']['single'] ){
 
-			$p->values = $p->input['add'];
+		if( !isset( $p->input['defrec'] ) ){
+
+			$p->error = 'param_defrec_notfound';
+			return false;
+
+		}
+
+
+		if( isset( $p->module['actions']['defrec'][ $p->input['defrec'] ] ) ){
+
+
 
 			$p->db['request']['query']	= 'insert';
+
+			$p->module['actions']['add'] = $p->module['actions']['defrec'][ $p->input['defrec'] ];
+
+
+
+			if( !$this->make_values( $p ) )
+				return false;
+
+
 
 
 			foreach( $p->module['fields'] as $field => $fieldval ) {
@@ -186,10 +358,10 @@ class Api2Db_Actions
 
 					$convert_name = $fieldval['convert']['add'];
 
-					if( !empty( $p->input[$field]['add'] ) && !empty($convert_name) ){
+					if( !empty( $p->input['defrec'][$field] ) && !empty($convert_name) ){
 
 						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
-							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[$field]['add']  );
+							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input['defrec'][$field]  );
 
 						if( isset( $convertval ) ) {
 				   			$p->values[$field] = $convertval;
@@ -199,10 +371,12 @@ class Api2Db_Actions
 				}
 			}
 				
+
+
 			if( !$this->check_row( $p, $p->values, 'add' ) )
 				return false;
 
-			$this->purge_data( $p );
+
 
 			if( !$this->make_set( $p ) )
 				return false;
@@ -227,7 +401,7 @@ class Api2Db_Actions
 			}
 
 		}else{
-			$p->error = 'defrec_single_not_define';
+			$p->error = 'defrec_'.$p->input['defrec'].'_not_define';
 			return false;
 		}
 
@@ -236,54 +410,54 @@ class Api2Db_Actions
 
 	final public function action_save( $p ){
 
-		if( !$this->is_requare( $p ) )
+		if( !isset( $p->input['defrec'] ) ){
+
+			$p->error = 'param_defrec_notfound';
 			return false;
 
-		// Формируем where
-		if( !$this->make_where( $p ) ) 
-			return false;
-
-		// Запрос общего количества из БД
-		if( !$this->get_records( $p ) )
-			return false;
-
-		// Нет записей
-		if(  $p->records == 0 ){
-
-			$p->error = 'notfound';
-			return false;
 		}
 
-		if( $p->module['defrec']['single'] ){
 
-			$p->values = $p->input['save'];
+		if( isset( $p->module['actions']['defrec'][ $p->input['defrec'] ] ) ){
+
+
+			$p->module['actions']['save'] = $p->module['actions']['defrec'][ $p->input['defrec'] ];
+
+
+			if( !$this->is_requare( $p ) )
+				return false;
+
+			// Формируем where
+			if( !$this->make_where( $p ) ) 
+				return false;
+
+			// Запрос общего количества из БД
+			if( !$this->get_records( $p ) )
+				return false;
+
+
+
+			// Нет записей
+			if(  $p->records == 0 ){
+
+				$p->error = 'notfound';
+				return false;
+			}
+
 
 			$p->db['request']['query']	= 'update';
 
-			foreach( $p->module['fields'] as $field => $fieldval ) {
-
-				if( !empty( $fieldval['convert'] ) ){
-
-					$convert_name = $fieldval['convert']['save'];
-
-					if( !empty( $p->input[$field]['save'] ) && !empty($convert_name) ){
-
-						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
-							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[$field]['save']  );
-
-						if( isset( $convertval ) ) {
-				   			$p->values[$field] = $convertval;
-				   		}
-
-					}
-				}
-			}
+			if( !$this->make_values( $p ) )
+				return false;
 				
 			if( !$this->check_row( $p, $p->values, 'save' ) )
 				return false;
 
+
 			if( !$this->make_set( $p ) )
 				return false;
+
+
 
 
 			if( !$this->make_sql_str( $p ) )
@@ -298,24 +472,26 @@ class Api2Db_Actions
 			}else
 				return true;
 		
-			
-
 		}else{
-			$p->error = 'defrec_single_not_define';
+			$p->error = 'defrec_'.$p->input['defrec'].'_not_define';
 			return false;
 		}
+		
+
 
 		return true;
 	}
+
+
 
 	final public function action_defrec( $p ){
 
 
 		$p->db['whence'] = "action_defrec";
 
-		if( is_array( $p->module['defrec'] ) ){
+		if( is_array( $p->module['actions']['defrec'] ) ){
 			
-			foreach ($p->module['defrec'] as $keyview => $defrec) {
+			foreach ($p->module['actions']['defrec'] as $keyview => $defrec) {
 
 				if( is_array( $defrec ) ){
 			
@@ -330,7 +506,9 @@ class Api2Db_Actions
 									unset($view[$key]);
 							
 						}
-					}
+					}else{
+						$view = $defrec['fields'];
+					}	
 
 					$p->make_row	= $view;
 					$rows 			= $this->make_row( $p );
@@ -388,6 +566,8 @@ class Api2Db_Actions
 					$arg['checks'] = $p->module['fields'][$field]['check'][$type];
 
 
+
+
 			if( isset( $p->module['fields'][$field]['check']['*'] ) ){
 
 				if( !empty( $arg['checks'] ) )
@@ -397,14 +577,18 @@ class Api2Db_Actions
 
 			}
 
+
+
 			$fld = clone $p;
 
-			unset($fld->ret);
-			unset($fld->errors);
 
 			
 			if( !$this->check_field_by_value( $fld, $arg ) )
 				$errors[$field]['errors'] = $fld->errors;
+
+			unset($fld->ret);
+			unset($fld->errors);
+
 
 		}
 
@@ -437,10 +621,6 @@ class Api2Db_Actions
 		if( empty( $arg['checks'] ) ) {
 			$arg['checks'] = [];	
 		}
-
-		if( isset( $p->module['fields'][$arg['field']]['type'] ) )
-		if( $p->module['fields'][$arg['field']]['type'] == 'hidden' )
-			return true;
 
 
 		if( $arg['edit'] == 'yes' ){
@@ -584,6 +764,80 @@ class Api2Db_Actions
 	}
 
 
+	final public function make_values( $p ){
+
+
+		$p->values = [];
+
+		$action  = $p->module['actions'][ $p->action ]; 
+
+		$exclude = ( isset( $action['exclude'] ) ) ? $action['exclude'] : [] ;
+		$fields  = (array)$action['fields'];
+
+		$def_fields  = ( isset( $action['default'] ) ) ? $action['default'] : [] ;
+
+		if( $fields == 'all' )
+			$fields = array_keys( $p->module['fields'] );
+
+
+		foreach( $fields as $field ) {
+
+			$fieldval = $p->module['fields'][$field];
+
+			if( !isset( $fieldval['edit'] ) )
+					continue;
+
+
+
+			if( !empty( $fieldval ) && !in_array( $field, $exclude ) ){
+
+
+
+				if( !empty( $fieldval['convert'] ) ){
+
+					$convert_name = $fieldval['convert'][ $p->action ];
+
+					if( !empty( $p->input[$field][ $p->action ] ) && !empty($convert_name) ){
+
+						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
+							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[$field][ $p->action ]  );
+
+						if( isset( $convertval ) ) 
+				   			$p->values[$field] = $convertval;
+				   		
+
+					}
+				
+				}else{
+
+					if( !empty( $p->input[ $p->action ][ $field ] ) )
+						$p->values[$field] = $p->input[ $p->action ][ $field ];
+					else
+						$p->values[$field] = '';
+				}
+
+			}
+		}
+
+		foreach( $def_fields as $field ) {
+
+			if( !empty( $p->module['fields'][$field]['default'] ) && !in_array( $field, $exclude ) )
+				$p->values[$field] = $p->module['fields'][$field]['default'];
+			
+		}
+
+		if( empty( $p->values ) ){
+
+			$p->error = 'nothing_' . $p->action;
+			return false;
+
+		}
+
+
+		return true;
+	}
+
+
 	final public function make_set( $p ){
 
 		if( !empty( $p->values ) ){
@@ -604,7 +858,12 @@ class Api2Db_Actions
 						
 					}
 
-					$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
+
+					if( isset( $field['default'] ) ){
+						$fields_sql[] = $key . '=' . $val;
+					}else{
+						$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
+					}
 				
 				}
 			}
@@ -615,50 +874,6 @@ class Api2Db_Actions
 
 		return true;
 	}
-
-	final public function make_put_values( $p ){
-
-		$putvalues = [];
-
-		$putvalues['input'] = $p->input;
-
-		$values = $p->input;
-
-		if( isset( $p->values ) )
-			$values = $p->values;
-
-		// put fields 
-		if( isset( $p->module ) )
-			if( is_array( $p->module['fields'] ) )
-				foreach( $p->module['fields'] as $keyField => $field ){
-
-
-					if( array_key_exists( $keyField, $values) )
-						$putvalues['input'][$keyField] = [
-							'key' 	=> $this->set_key( $field, $keyField ),
-							'value'	=> $values[$keyField]
-						];
-
-
-					if( isset( $values['search'] ) )
-						if( array_key_exists( $keyField, (array)$values['search'] ) && isset( $field['search'] ) )
-							$putvalues['input']['search'][$keyField] = [
-								'key' 	=> $this->set_key( $field, $keyField ),
-								'value'	=> $values['search'][$keyField]
-							];
-				}
-
-		if( is_array( $p->local ) )
-			$putvalues['local'] = $p->local;
-
-
-		$p->putvalues = $putvalues;
-
-
-
-	}
-
-
 
 
 	private function is_requare( $p ){
@@ -697,8 +912,6 @@ class Api2Db_Actions
 		if( !$this->extend_make_where( $p ) )
 			return false;
 
-
-		$this->make_put_values( $p );
 
 		$search = $p->input['search'];
 
@@ -881,38 +1094,53 @@ class Api2Db_Actions
 
 	private function make_fields( $p ){
 
+		$fields = $p->module['actions'][ $p->action ]['fields'];
+
+		if( $fields == 'all' )
+			$fields = array_keys( $p->module['fields'] );
 
 
-		if( $p->module['fields'] ){
+		if( isset( $p->module['actions'][ $p->action ]['exclude'] ) )
+			$exclude = $p->module['actions'][ $p->action ]['exclude'];
+		else
+			$exclude = [];
+
+
+		if( is_array( $fields ) ){
 			
-			foreach( $p->module['fields'] as $keyField => $field ) {
-			
+			foreach( $fields as $keyField ) {
+
+				if( in_array( $keyField, $exclude ) )
+					continue;
+
+				$field = $p->module['fields'][$keyField];
+
+				if( isset( $field['type'] ) )
+					if( $field['type'] == 'submodule' )
+						continue;
+
 				if( isset($field['field']) )
-					$fields[$keyField] = $field['field'] . ' as ' . $keyField;
+					$outfields[$keyField] = $field['field'] . ' as ' . $keyField;
 
 				elseif( isset($field['key']) )
-					$fields[$keyField] = $field['key'] . ' as ' . $keyField;
+					$outfields[$keyField] = $field['key'] . ' as ' . $keyField;
 				
 				else
-					$fields[$keyField] = $keyField;
+					$outfields[$keyField] = $keyField;
 
 			}
 		
 		}else{
 
-			$this->storage->push_debug_by_key( 'make_fields', [
-				'error' => 'bad_module',
-				'module' => $p->module['modname']
-			]);
 
-
+			$p->error = 'not_defined_fields';
 			return false;
 		}
 
 
 
 
-		$p->db['request']['fields'] = $fields;
+		$p->db['request']['fields'] = $outfields;
 
 
 		return true;
@@ -1015,13 +1243,13 @@ class Api2Db_Actions
 		return $rows;
 	}
 
+
 	private function make_row( $p ){
 
-		if( !isset( $p->make_row  ) )
-			return [];
-		
-		
 		$row = [];
+
+		if( !isset( $p->make_row  ) )
+			return $row;
 
 		foreach( $p->make_row as $key => $val) {
 
@@ -1030,6 +1258,11 @@ class Api2Db_Actions
 				$key = $val;
 				$val = '';
 			}
+
+
+			if( !empty( $p->input[ $p->action ][$key] ) )
+				$val = $p->input[ $p->action ][$key];
+
 
 
 			if( isset( $p->module['fields'][$key]['type'] ) )
@@ -1048,6 +1281,7 @@ class Api2Db_Actions
 				$convert_name_by_action = '';
 				$convert_name_by_all 	= '';
 				$convert 				= '';
+
 				// Конвертация вывода
 				if( !empty( $p->module['fields'][$key]['convert'][$p->action] ) )
 					$convert_name_by_action = $p->module['fields'][$key]['convert'][$p->action];
@@ -1103,7 +1337,8 @@ class Api2Db_Actions
 				$keyval 		= $p->module['fields'][$key];
 				$row['key'] 	= $key;
 				$row['name']	= $key;
-
+				$row['edit'] 	= 'no';
+				$row['type']	= ( isset( $keyval['type'] ) ) ? $keyval['type'] : 'text';
 
 				if( !isset( $keyval['edit'] ) )
 					$keyval['edit'] = 'no';
@@ -1111,8 +1346,8 @@ class Api2Db_Actions
 				if( isset( $keyval['name'] ) )
 					$row['name'] = $keyval['name'];
 
-				elseif( !empty( $this->names[ $key ] ) )
-					$row['name'] = $this->names[ $key ];
+				elseif(  $this->storage->get_name( $key ) ) 
+					$row['name'] = $this->storage->get_name( $key );
 				
 				if( isset( $keyval['check']['save'] ) or $keyval['edit'] == 'yes' )
 					$row['edit'] = 'yes';
@@ -1210,7 +1445,7 @@ class Api2Db_Actions
 				$result = $this->db->select( $sql, 'create_options_to_key_'.$key );
 
 				if( !empty( $result ) )
-					$options = $p->db['lastResult'];
+					$options = $result;
 
 
 			}
@@ -1232,7 +1467,7 @@ class Api2Db_Actions
 				if( $p->module['fields'][$key]['type'] != 'search' )
 					$heads[$key] = $this->make_head_row( $key, $p );		
 		
-		if( isset( $p->input['heads'] ) )
+		if( $p->input['heads']  )
 			$p->output['heads'] = $heads;
 	}
 

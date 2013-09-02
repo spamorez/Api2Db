@@ -46,7 +46,7 @@ class Api2Db_Storage
 
 	final public function get_name( $name ){
 
-		if( !empty( $name ) )
+		if( !empty( $name ) && !empty( $this->names[ $name ] ) )
 			return $this->names[ $name ];
 		else
 			return false;
