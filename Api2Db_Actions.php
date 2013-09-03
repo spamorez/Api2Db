@@ -328,7 +328,7 @@ class Api2Db_Actions
 	final public function action_add( $p ){
 
 
-		if( !isset( $p->input['defrec'] ) ){
+		if( !isset( $p->input['defrec_type'] ) ){
 
 			$p->error = 'param_defrec_notfound';
 			return false;
@@ -336,13 +336,13 @@ class Api2Db_Actions
 		}
 
 
-		if( isset( $p->module['actions']['defrec'][ $p->input['defrec'] ] ) ){
+		if( isset( $p->module['actions']['defrec'][ $p->input['defrec_type'] ] ) ){
 
 
 
 			$p->db['request']['query']	= 'insert';
 
-			$p->module['actions']['add'] = $p->module['actions']['defrec'][ $p->input['defrec'] ];
+			$p->module['actions']['add'] = $p->module['actions']['defrec'][ $p->input['defrec_type'] ];
 
 
 
@@ -401,7 +401,7 @@ class Api2Db_Actions
 			}
 
 		}else{
-			$p->error = 'defrec_'.$p->input['defrec'].'_not_define';
+			$p->error = 'defrec_'.$p->input['defrec_type'].'_not_define';
 			return false;
 		}
 
@@ -410,7 +410,7 @@ class Api2Db_Actions
 
 	final public function action_save( $p ){
 
-		if( !isset( $p->input['defrec'] ) ){
+		if( !isset( $p->input['defrec_type'] ) ){
 
 			$p->error = 'param_defrec_notfound';
 			return false;
@@ -418,10 +418,10 @@ class Api2Db_Actions
 		}
 
 
-		if( isset( $p->module['actions']['defrec'][ $p->input['defrec'] ] ) ){
+		if( isset( $p->module['actions']['defrec'][ $p->input['defrec_type'] ] ) ){
 
 
-			$p->module['actions']['save'] = $p->module['actions']['defrec'][ $p->input['defrec'] ];
+			$p->module['actions']['save'] = $p->module['actions']['defrec'][ $p->input['defrec_type'] ];
 
 
 			if( !$this->is_requare( $p ) )
@@ -473,7 +473,7 @@ class Api2Db_Actions
 				return true;
 		
 		}else{
-			$p->error = 'defrec_'.$p->input['defrec'].'_not_define';
+			$p->error = 'defrec_'.$p->input['defrec_type'].'_not_define';
 			return false;
 		}
 		
@@ -487,50 +487,48 @@ class Api2Db_Actions
 	final public function action_defrec( $p ){
 
 
-		$p->db['whence'] = "action_defrec";
+		if( !isset( $p->input['defrec_type'] ) ){
 
-		if( is_array( $p->module['actions']['defrec'] ) ){
-			
-			foreach ($p->module['actions']['defrec'] as $keyview => $defrec) {
-
-				if( is_array( $defrec ) ){
-			
-
-					if( is_string( $defrec['fields'] ) and $defrec['fields'] == 'all' ){
-						$view = array_keys($p->module['fields']);
-
-						if( is_array( $defrec['exclude'] ) ){
-
-							foreach ($view as $key => $del) 
-								if( in_array($del, $defrec['exclude'] ) )	
-									unset($view[$key]);
-							
-						}
-					}else{
-						$view = $defrec['fields'];
-					}	
-
-					$p->make_row	= $view;
-					$rows 			= $this->make_row( $p );
-					
-					unset($p->make_row);		
-					
-				
-				}else{
-				
-					$p->error = 'view_bad_format';
-					return false;
-				
-				}
-			
-			}
-
-		}else{
-
-			$p->error = 'view_bad_format';
+			$p->error = 'param_defrec_notfound';
 			return false;
 
 		}
+
+
+		$p->db['whence'] = "action_defrec";
+
+		if( $p->module['actions']['defrec'][ $p->input['defrec_type'] ] ){
+
+			$defrec = $p->module['actions']['defrec'][ $p->input['defrec_type'] ];
+	
+
+			if( is_string( $defrec['fields'] ) and $defrec['fields'] == 'all' ){
+				$view = array_keys($p->module['fields']);
+
+				if( is_array( $defrec['exclude'] ) ){
+
+					foreach ($view as $key => $del) 
+						if( in_array($del, $defrec['exclude'] ) )	
+							unset($view[$key]);
+					
+				}
+			}else{
+				$view = $defrec['fields'];
+			}	
+
+			$p->make_row	= $view;
+			$rows 			= $this->make_row( $p );
+			
+			unset($p->make_row);		
+			
+		
+		}else{
+		
+			$p->error = 'defrec_bad_format';
+			return false;
+		
+		}
+
 
 
 		$p->output['rows'] = $rows;
@@ -774,8 +772,6 @@ class Api2Db_Actions
 		$exclude = ( isset( $action['exclude'] ) ) ? $action['exclude'] : [] ;
 		$fields  = (array)$action['fields'];
 
-		$def_fields  = ( isset( $action['default'] ) ) ? $action['default'] : [] ;
-
 		if( $fields == 'all' )
 			$fields = array_keys( $p->module['fields'] );
 
@@ -810,21 +806,15 @@ class Api2Db_Actions
 				
 				}else{
 
-					if( !empty( $p->input[ $p->action ][ $field ] ) )
+					if( isset( $p->input[ $p->action ][ $field ] ) )
 						$p->values[$field] = $p->input[ $p->action ][ $field ];
-					else
-						$p->values[$field] = '';
+				//	else
+				//		$p->values[$field] = '';
 				}
 
 			}
 		}
 
-		foreach( $def_fields as $field ) {
-
-			if( !empty( $p->module['fields'][$field]['default'] ) && !in_array( $field, $exclude ) )
-				$p->values[$field] = $p->module['fields'][$field]['default'];
-			
-		}
 
 		if( empty( $p->values ) ){
 
@@ -858,16 +848,20 @@ class Api2Db_Actions
 						
 					}
 
+					$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
 
-					if( isset( $field['default'] ) ){
-						$fields_sql[] = $key . '=' . $val;
-					}else{
-						$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
-					}
-				
 				}
 			}
 			
+			if( isset( $p->module['actions'][ $p->action ]['set'] ) ){
+				$def_set = $p->module['actions'][ $p->action ]['set'];
+
+
+				if( is_array( $def_set ) ){
+					$fields_sql = array_merge($fields_sql,$def_set);
+				}
+			}
+
 			$p->db['request']['set'] = $fields_sql;
 
 		}
@@ -878,11 +872,19 @@ class Api2Db_Actions
 
 	private function is_requare( $p ){
 
-		if( !empty($p->module['require']) ){
+		$require = [];
+
+		if( isset( $p->module['actions'][ $p->action ]['require'] ) )
+			$require = $p->module['actions'][ $p->action ]['require'];
+		
+		else if( isset( $p->module['require'] ) )
+			$require = $p->module['require'];
+
+		if( !empty( $require ) ){
 
 			$requires = [];
 
-			foreach ( (array)$p->module['require'] as $require ) {
+			foreach ( (array)$require as $require ) {
 				
 				if( !in_array( $require, array_keys( $p->input ) ) )
 					$requires[] = $require;
@@ -921,6 +923,9 @@ class Api2Db_Actions
 
 		}
 
+		if( isset( $p->module['where'][ $p->action ] ) ){
+			$where[ $p->action ] = "and ".$p->module['where'][ $p->action ];
+		}
 
 	
 		$delimetr = 'and';
