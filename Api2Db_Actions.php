@@ -1459,14 +1459,29 @@ class Api2Db_Actions
 	private function make_heads( $p ){
 
 		$heads = [];
+		$exclude = [];
+		$fields = [];
 
-		if( isset( $p->module['fields'] ) && is_array( $p->module['fields'] ) ) 
+		if( isset( $p->module['actions'][ $p->action ]['fields'] ) )
+			$fields = $p->module['actions'][ $p->action ]['fields'];
 
-			foreach($p->module['fields'] as $key => $keyval )
 
-				if( isset( $p->module['fields'][$key]['type'] ) )
-				if( $p->module['fields'][$key]['type'] != 'search' )
+		if( $fields == 'all' ){
+			$fields = array_keys( $p->module['fields'] );
+
+			if( isset( $p->module['actions'][ $p->action ]['exclude'] ) ){
+
+				$exclude = $p->module['actions'][ $p->action ]['exclude'];
+			}
+		}
+
+
+		if( !empty( $fields ) )
+			foreach($fields  as $key ){
+
+				if( !in_array($key, $exclude ) )
 					$heads[$key] = $this->make_head_row( $key, $p );		
+			}
 		
 		if( $p->input['heads']  )
 			$p->output['heads'] = $heads;
