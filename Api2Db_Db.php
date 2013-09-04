@@ -58,7 +58,7 @@ class Api2Db_Db
 
 			switch ( $db_type ) {
 				case 'mysql':
-					$this->connect_mysql( $db_conf['connections'][ $name_connect ], $name_connect );
+					return $this->connect_mysql( $db_conf['connections'][ $name_connect ], $name_connect );
 					break;
 				
 			}
@@ -91,12 +91,12 @@ class Api2Db_Db
 				$this->currentConnection										= &$this->connections[$name_connect];
 				$this->storage->push_debug_db("create connect $name_connect");
 
-
+				return true;
 			}
 
 			catch( PDOException $e ){
 			
-				$p->error 	= 'dberror';
+
 
 				$this->storage->push_debug_db( [
 					'error' => ['message' => $e->getMessage(), 'code' => $e->getCode()],
@@ -104,15 +104,21 @@ class Api2Db_Db
 				]);
 
 
-				return fasle;
+				return false;
 			}
 
 		}
+
+		return true;
 
 	}
 
 
 	final public function execute( $sql, $whence ){
+
+		if( empty( $this->currentConnection ) )
+			return false;
+		
 
 		$sql 	= $this->currentConnection->prepare( $sql );
 		$start 	= microtime(true);
