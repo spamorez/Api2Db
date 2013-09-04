@@ -163,6 +163,14 @@ class Api2Db_Functions
 	}
 
 
+	final public function is_valid_date($data, $format = 'Y-m-d') {
+	    if (date($format, strtotime($data)) == $data) {
+	        return true;
+	    } else {
+	        return false;
+	    }
+	}
+
 	// Допускается использование * в адресе
 	final public function is_email_mask( $email ){
 		 

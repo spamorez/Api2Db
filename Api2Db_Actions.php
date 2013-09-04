@@ -226,6 +226,15 @@ class Api2Db_Actions
 		if( !$this->is_requare( $p ) )
 			return false;
 
+		if( isset( $p->input['list'] ) ){
+			$request = (array)$p->input['list'];
+		}else{
+			$request = [];
+		}
+
+		if( !$this->check_row( $p, $request, 'list' ) )
+			return false;
+
 		// Формируем where
 		if( !$this->make_where( $p ) ) 
 			return false;
@@ -281,6 +290,7 @@ class Api2Db_Actions
 
 
 		$this->make_heads( $p );
+
 
 		if( !$this->is_requare( $p ) )
 			return false;
@@ -608,12 +618,6 @@ class Api2Db_Actions
 
 		$err = [];
 
-		// Запрет на редактирование полей, если явно не установлен признак
-		if( !empty( $arg['value'] ) && $arg['edit'] != 'yes' ){
-			$p->errors	= [ 'error' => 'denied_edit_key', 'val' => $arg['value'] ];
-
-			return false;
-		}
 
 		// Проверка пустая
 		if( empty( $arg['checks'] ) ) {
@@ -621,86 +625,75 @@ class Api2Db_Actions
 		}
 
 
-		if( $arg['edit'] == 'yes' ){
 
-			if( !isset( $arg['field'] ) )
-				$err[] = 'no field';
+		if( !isset( $arg['field'] ) )
+			$err[] = 'no field';
 
-			if( !is_array( $arg['values'] ) )
-				$err[] = 'bad param values';
+		if( !is_array( $arg['values'] ) )
+			$err[] = 'bad param values';
+
+		if( empty( $err ) ){
+
+
+			foreach ( $arg['checks'] as $type_check => $type_check_el ){
+				
+				if( in_array( $type_check, ['single','sql'] ) ){
+
+
+
+					foreach ( $type_check_el as $key => $check ){
+
+						if( $type_check == 'sql' ){
+						
+							$check_key 	= $key;
+
+
+							$arg['sql'] = $this->Api2Db->functions->put_values( $check, array_merge( $p->putvalues, [ 'this' => [ 'value' => $arg['value'] ] ] ) );
+
+
+						
+						}else{
+							
+							$check_key = $check;
+						
+						}
+
+						if( method_exists( $this->Api2Db->checks,  $type_check . "_" . $check_key ) ){
+
+							$result = $this->Api2Db->checks->{ $type_check . "_" . $check_key }($arg);
+
+							if( !empty( $result['error'] ) ){
+							
+								$result['check_type']  = $type_check . "_" . $check_key;
+								$err[] = $result;
+							
+							}
+
+						}else{
+
+							$err[] = [ 'error' => 'bad_check_key', 'val' => $type_check . "_" . $check_key  ];
+						
+						}
+
+					}//endforeach;
+				}
+
+			}
 
 			if( empty( $err ) ){
-
-
-				foreach ( $arg['checks'] as $type_check => $type_check_el ){
-					
-					if( in_array( $type_check, ['single','sql'] ) ){
-
-
-
-						foreach ( $type_check_el as $key => $check ){
-
-							if( $type_check == 'sql' ){
-							
-								$check_key 	= $key;
-
-
-								$arg['sql'] = $this->Api2Db->functions->put_values( $check, array_merge( $p->putvalues, [ 'this' => [ 'value' => $arg['value'] ] ] ) );
-
-
-							
-							}else{
-								
-								$check_key = $check;
-							
-							}
-
-							if( method_exists( $this->Api2Db->checks,  $type_check . "_" . $check_key ) ){
-
-								$result = $this->Api2Db->checks->{ $type_check . "_" . $check_key }($arg);
-
-								if( !empty( $result['error'] ) ){
-								
-									$result['check_type']  = $type_check . "_" . $check_key;
-									$err[] = $result;
-								
-								}
-
-							}else{
-
-								$err[] = [ 'error' => 'bad_check_key', 'val' => $type_check . "_" . $check_key  ];
-							
-							}
-
-						}//endforeach;
-					}
-
-				}
-
-				if( empty( $err ) ){
-					return true;
-				}else{
-
-					$p->errors = $err;
-					return false;
-				}
-
-
+				return true;
 			}else{
-				$p->errors = [ 'error' => 'bad_in_param','val' => $err ];
-				return false;
-			}
-		
-		}else{
-		
-			if( !empty( $arg['value']  ) ) {
 
-				$p->errors = [ 'error' => 'readonly' ];	
+				$p->errors = $err;
 				return false;
-			
 			}
-		
+
+
+		}else{
+			$p->errors = [ 'error' => 'bad_in_param','val' => $err ];
+			return false;
 		}
+	
 		
 		return true;
 	}
@@ -1116,6 +1109,9 @@ class Api2Db_Actions
 			foreach( $fields as $keyField ) {
 
 				if( in_array( $keyField, $exclude ) )
+					continue;
+
+				if( !isset( $p->module['fields'][$keyField] ) )
 					continue;
 
 				$field = $p->module['fields'][$keyField];
