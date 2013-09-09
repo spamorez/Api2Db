@@ -907,8 +907,8 @@ class Api2Db_Actions
 		if( !$this->extend_make_where( $p ) )
 			return false;
 
+		$where = [];
 
-		$search = $p->input['search'];
 
 		// Для модуля жестко установлено where
 		if( isset( $p->module['where']['every'] ) ){
@@ -920,173 +920,109 @@ class Api2Db_Actions
 			$where[ $p->action ] = "and ".$p->module['where'][ $p->action ];
 		}
 
-	
-		$delimetr = 'and';
+
+		if( isset( $p->input['filters'] ) ){
+
+			if( isset( $p->module['actions'][ $p->action ]['filter'] ) )
+				$filters = (array)$p->module['actions'][ $p->action ]['filter'];
+			else
+				$filters = [];
 
 
 
-		// проверяем переданные параметры
-		if( isset( $p->module['fields'] ) && is_array( $p->module['fields'] )/* && ( !empty( $p->input['search'] ) || !empty( $p->input['autoSearch'] ) )*/ ) {
-
-			$i = 0;
-
-			foreach( $p->module['fields'] as $keyField => $field ){
-
-				$extraWhere = '';
-				$key 		= $this->set_key( $field, $keyField );
+			foreach ( $filters as $key ) {
+				
+				if( !isset( $p->module['fields'][ $key ] ) )
+					continue;
 
 
-				if( !empty( $p->input['search']['autoSearch'] ) ){
-					$val 		= $this->Api2Db->functions->sql_escape( $p->input['search']['autoSearch'] );
-					$keyField	= 'autoSearch';
+				if( !isset( $p->input['filters'][ $key ] ) )
+					continue;
+
+
+
+				$sql 	= '';
+				$filter = $p->module['fields'][ $key ]['filter'];
+
+				if( isset( $filter['type'] ) ){
+					
+					if( $filter['type'] == 'like' )
+						$sql = ':this->key like "%:this->value%"';
+
+					if( $filter['type'] == 'key' )
+						$sql = ':this->key=":this->value"';
 				}
 
-				elseif( isset( $p->input['search'][$keyField] ) )
-					$val = $this->Api2Db->functions->sql_escape( $p->input['search'][$keyField] );
+				if( !empty( $filter['sql'] ) ){
+					$sql = $filter['sql'];
+				}
 
-				
+				if( empty( $sql ) )
+					continue;
 
-				if( isset( $field['search'] ) ){
+				if( isset( $p->module['fields'][ $key ]['key'] ) ){
+					$keyfield = $p->module['fields'][ $key ]['key'];
+				}else{
+					$keyfield = $key;
+				}
 
-
-					// иначе потом ругаться будет
-					if( !isset( $field['search']['require'] ) ) 
-						$field['search']['require'] = 'no';
-
-					// разрешен поиск по этому полю
-
-					// Передан параметр в запросе
-					if( isset($search[$keyField]) && $search[$keyField]!='') {
-
-
-
-
-						$this_values = [
-							'key' 	=> $key,
-							'value' => $val
-						];
+				$this_values = [
+					'key' 	=> $keyfield,
+					'value' => $p->input['filters'][ $key ]
+				];
 
 
-
-							
-						if( isset($field['search']['type']) ) {
-
-							
-							// Тут мне надо тщательно подумать как хранить эти данные
-							switch( $field['search']['type'] ) {
-
-								case 'field':
-								case 'like':
-
-									// Устанвлено правило поиска в бд
-									if( isset( $field['search']['field'] ) ){
-										
-										$extraWhere = $this->Api2Db->functions->put_values( $field['search']['field'] , array_merge( $p->putvalues, ['this' => $this_values] ) );
-
-								
-									}else{
-
-										$this->storage['debug']['make_where'][] = [
-											'error'	=> 'undefined',
-											'param'	=> $keyField,
-											'where' => 0
-										];
-
-										return false;
-									
-									}
-
-								break;
-								case 'key':
-
-									$extraWhere = $key . '="' . $val . '"';
-								
-								break;
-
-								case 'select':
-								
-									// Тут у нас какое-то дублирование проверок, подумать над вариантами исправления
-									if( in_array( $field['options'] ) ) { 
-
-										// Если установлен массив значений
-										if( in_array( $field['options'][$val] ) ) {
-										
-											if(  isset( $field['options'][$val]['where'] ) )
-												$extraWhere = $this->Api2Db->functions->put_values( $field['options'][$val]['where'], $p->putvalues );
-										
-											else
-												$extraWhere = $key . '="' . $field['options'][$val] . '"';
-										
-
-										}else{
-
-											$this->storage['debug']['make_where'][]= [
-												'error' => 'undefined',
-												'param' => $keyField, 
-												'value' => $val,
-												'where' => 1
-											];
-
-											return false;
-										
-										}
-									}else{
-										// Если задан как запрос к БД
-										//
-										//
-										//
-										//
-										// тут еще не реализовано
-									}
-
-								break;
-
-								default:
-									$extraWhere = $key . '="' . $val . '"';
-							}
-
-						}else{
-							$extraWhere = $key . '="' . $val . '"';
-						}
-									
-						// Добавляем параметр к запросу
-						if( $extraWhere != '' ){
+				$sql = $this->Api2Db->functions->put_values( $sql , array_merge( $p->putvalues, ['this' => $this_values] ) );
 
 
-								$where[] 	= $delimetr;
-
-							$where[$key] = $extraWhere;
-
-
-							$i++;
-						}
-
-
-					}elseif( $field['search']['require'] === 'yes' ){
-
-						// Необходимо, что-бы переменная была установлена
-						$this->storage->push_debug_by_key( 'make_where', [
-							'error'	=> 'required',
-							'param'	=> $keyField,
-							'where' => 2
-						]);
-						
-						return false;
-
-					}// if( isset($values[$keyFiled]))
-
-
-				} // if( isset($field['search']))
-				
-			} // foreach
+				$where[$key."_filter"] = $sql;
+			}
+	
 
 		}
 
+		if( !empty( $p->input['search'] ) ){
 
-		if( isset( $where ) )
-			$p->db['request']['where'] = array_merge( $p->db['request']['where'], $where );
 
-		return true;
+			if( isset( $p->module['actions'][ $p->action ]['search'] ) )
+				$search = (array)$p->module['actions'][ $p->action ]['search'];
+			else
+				$search = [];
+
+
+
+			foreach ( $search as $key ) {
+				
+				if( !isset( $p->module['fields'][ $key ] ) )
+					continue;
+
+
+				$sql = ':this->key like "%:this->value%"';
+
+
+				if( isset( $p->module['fields'][ $key ]['key'] ) ){
+					$keyfield = $p->module['fields'][ $key ]['key'];
+				}else{
+					$keyfield = $key;
+				}
+
+				$this_values = [
+					'key' 	=> $keyfield,
+					'value' => $p->input['search']
+				];
+
+
+				$sql = $this->Api2Db->functions->put_values( $sql , array_merge( $p->putvalues, ['this' => $this_values] ) );
+
+				if( count($where) > 0 )
+					$where[$key."_search"] = " or ".$sql;
+				else
+					$where[$key."_search"] = " and ".$sql;
+			}
+	
+
+		}
+	
 
 	}
 
@@ -1491,11 +1427,21 @@ class Api2Db_Actions
 
 		$search = [];
 
-		if( isset( $p->module['fields'] ) && is_array( $p->module['fields'] ) ) {
+		if( isset( $p->module['actions'][ $p->action ]['filter'] ) )
+			$fields = $p->module['actions'][ $p->action ]['filter'];
+		else
+			$fields = [];
 
-			foreach( $p->module['fields'] as $key => $keyval ) {
+		if( !empty( $fields ) ) {
+
+			foreach( $fields as $key ) {
+
+				if( !isset( $p->module['fields'][ $key ] ) )
+					continue;
+
+				$keyval = $p->module['fields'][ $key ];
 			
-				if( isset( $p->module['fields'][$key]['search'] ) ) { 
+				if( isset( $p->module['fields'][$key]['sql'] ) || isset( $p->module['fields'][$key]['type'] ) ) { 
 					
 					$search[$key]['key'] 	= $key;
 					$search[$key]['name'] 	= $key;
@@ -1513,7 +1459,7 @@ class Api2Db_Actions
 						
 							case 'select':
 						
-								$search[$key]['options'] = make_key_options( $key, $params );
+								$search[$key]['options'] = $this->make_key_options( $key, $p );
 						
 							break;
 						
