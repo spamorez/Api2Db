@@ -358,6 +358,14 @@ class Api2Db_Actions
 	final public function action_add( $p ){
 
 
+
+		if( !$p->module['actions'][ $p->action ] ){
+
+			$p->error = "action_not_available";
+			return false;
+
+		}
+
 		if( !isset( $p->input['defrec_type'] ) ){
 
 			$p->error = 'param_defrec_notfound';
@@ -439,6 +447,14 @@ class Api2Db_Actions
 	}
 
 	final public function action_save( $p ){
+
+
+		if( !$p->module['actions'][ $p->action ] ){
+
+			$p->error = "action_not_available";
+			return false;
+
+		}
 
 		if( !isset( $p->input['defrec_type'] ) ){
 
@@ -571,7 +587,12 @@ class Api2Db_Actions
 	private function action_delete( $p ){
 
 
-		$p->db['whence'] 			= "action_delete";
+		if( !$p->module['actions'][ $p->action ] ){
+
+			$p->error = "action_not_available";
+			return false;
+
+		}
 
 		if( !$this->is_requare( $p ) )
 			return false;
@@ -592,6 +613,7 @@ class Api2Db_Actions
 			return false;
 		}
 
+		$p->db['whence'] = "action_delete";
 		$p->db['request']['query']	= 'delete';
 
 		if( !$this->make_sql_str( $p ) )
