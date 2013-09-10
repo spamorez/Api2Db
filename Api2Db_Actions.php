@@ -384,14 +384,14 @@ class Api2Db_Actions
 
 			foreach( $p->module['fields'] as $field => $fieldval ) {
 
-				if( !empty( $fieldval['convert'] ) ){
+				if( !empty( $fieldval['convert']['add'] ) ){
 
 					$convert_name = $fieldval['convert']['add'];
 
 					if( !empty( $p->input['defrec'][$field] ) && !empty($convert_name) ){
 
 						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
-							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input['defrec'][$field]  );
+							$convertval = $this->Api2Db->converts->{ $convert_name }( $p->input['defrec'][$field]  );
 
 						if( isset( $convertval ) ) {
 				   			$p->values[$field] = $convertval;
@@ -535,10 +535,11 @@ class Api2Db_Actions
 			if( is_string( $defrec['fields'] ) and $defrec['fields'] == 'all' ){
 				$view = array_keys($p->module['fields']);
 
-				if( is_array( $defrec['exclude'] ) ){
+
+				if( isset( $defrec['exclude'] ) ){
 
 					foreach ($view as $key => $del) 
-						if( in_array($del, $defrec['exclude'] ) )	
+						if( in_array($del, (array)$defrec['exclude'] ) )	
 							unset($view[$key]);
 					
 				}
@@ -567,10 +568,49 @@ class Api2Db_Actions
 	} // defrec
 
 
+	private function action_delete( $p ){
+
+
+		$p->db['whence'] 			= "action_delete";
+
+		if( !$this->is_requare( $p ) )
+			return false;
+
+		// Формируем where
+		if( !$this->make_where( $p ) ) 
+			return false;
+
+
+		// Запрос общего количества из БД
+		if( !$this->get_records( $p ) )
+			return false;
+
+		// Нет записей
+		if(  $p->records == 0 ){
+
+			$p->error = 'notfound';
+			return false;
+		}
+
+		$p->db['request']['query']	= 'delete';
+
+		if( !$this->make_sql_str( $p ) )
+			return false;
+
+			
+		if( !$this->db->delete( $p->db['lastQuery'], 'action_delete' ) ){
+
+			$p->error = 'dberror';
+			return false;
+
+		}else
+			return true;
+
+	}
+
 	private function check_row( $p, $values, $type ){
 
 		$errors = [];
-
 
 
 		// Проверка полей
@@ -783,7 +823,7 @@ class Api2Db_Actions
 		$action  = $p->module['actions'][ $p->action ]; 
 
 		$exclude = ( isset( $action['exclude'] ) ) ? $action['exclude'] : [] ;
-		$fields  = (array)$action['fields'];
+		$fields  = $action['fields'];
 
 		if( $fields == 'all' )
 			$fields = array_keys( $p->module['fields'] );
@@ -802,7 +842,7 @@ class Api2Db_Actions
 
 
 
-				if( !empty( $fieldval['convert'] ) ){
+				if( !empty( $fieldval['convert'][ $p->action ] ) ){
 
 					$convert_name = $fieldval['convert'][ $p->action ];
 
@@ -829,12 +869,6 @@ class Api2Db_Actions
 		}
 
 
-		if( empty( $p->values ) ){
-
-			$p->error = 'nothing_' . $p->action;
-			return false;
-
-		}
 
 
 		return true;
@@ -876,6 +910,11 @@ class Api2Db_Actions
 			}
 
 			$p->db['request']['set'] = $fields_sql;
+
+		}else{
+
+			$p->error = 'nothing_' . $p->action;
+			return false;
 
 		}
 
@@ -935,6 +974,8 @@ class Api2Db_Actions
 			$where['every'] = "and ".$this->Api2Db->functions->put_values( $p->module['where']['every'], $p->putvalues );
 
 		}
+
+
 
 		if( isset( $p->module['where'][ $p->action ] ) ){
 			$where[ $p->action ] = "and ".$p->module['where'][ $p->action ];
@@ -1043,6 +1084,8 @@ class Api2Db_Actions
 
 		}
 	
+		$p->db['request']['where'] = array_merge($p->db['request']['where'], $where);	
+
 		return true;
 
 	}
@@ -1555,6 +1598,16 @@ class Api2Db_Actions
 
 			$requred = [ 'set', 'table' ];
 		
+		
+		}elseif( $request['query'] == 'delete' ) {
+			
+			$structure	 = [
+				'table'		=> 'from',
+				'where'		=> ['prefix' => 'where', 'implode' => ' '],
+
+			];
+
+			$requred = [ 'set', 'table' ];
 		
 		}else{
 			
