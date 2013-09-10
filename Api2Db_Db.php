@@ -18,6 +18,7 @@ class Api2Db_Db
 	private $currentConnection;
 	private $currentConnectionName;
 	private $currentDB;
+	private $sqlcache 			= [];
 
 	private function __construct(){
 
@@ -118,6 +119,11 @@ class Api2Db_Db
 
 		if( empty( $this->currentConnection ) )
 			return false;
+
+		$sqlmd5 = md5( $sql );
+
+		if( isset( $this->sqlcache[ $sqlmd5 ] ) )
+			return $this->sqlcache[ $sqlmd5 ];
 		
 
 		$sql 	= $this->currentConnection->prepare( $sql );
@@ -142,10 +148,16 @@ class Api2Db_Db
 
 		$this->storage->push_debug_db( $log );
 
-		if( isset( $log['error'] ) )
+		if( isset( $log['error'] ) ){
+			
 			return false;
-		else
+		
+		}else{
+
+			$this->sqlcache[ $sqlmd5 ] = $sql;
 			return $sql;
+		
+		}
 	}
 
 

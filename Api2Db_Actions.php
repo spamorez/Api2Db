@@ -151,23 +151,28 @@ class Api2Db_Actions
 
 				$val = $this->Api2Db->functions->put_values( $val, $p->putvalues);
 
-				switch ( $key ) {
-					case 'options':
+				if( !empty( $key ) ){
+
+					switch ( $key ) {
+						case 'options':
+							
 
 
+							$result = $this->db->select( $val, 'create_options_in_extra_to_key_'.$key );
 
-						$result = $this->db->select( $val, 'create_options_in_extra_to_key_'.$key );
+							if( !empty( $result ) )
+								$val = $result;
 
-						if( !empty( $result ) )
-							$val = $result;
+							break;
+						
+						case 'action':
+							$val = $this->Api2Db->functions->put_values( $val, $p->putvalues);
+							break;
 
-						break;
-					
-					case 'action':
-						$val = $this->Api2Db->functions->put_values( $val, $p->putvalues);
-						break;
+						default;
+							break;
+					}
 				}
-			
 			}
 
 		};
@@ -205,9 +210,24 @@ class Api2Db_Actions
 
 		if( !empty( $p->module['extra_info'][ $p->action ] ) ){
 		
+			if( isset( $p->module['extra_info'][ $p->action . '_convert' ] ) )
+				$convert_name = $p->module['extra_info'][ $p->action . '_convert' ];
+			else
+				$convert_name = '';
+
+			if( method_exists( $this->Api2Db->converts,  $convert_name ) ){
+
+				$result = $this->Api2Db->converts->{ $convert_name }( $p->module['extra_info'][ $p->action ], $p->output  );
+
+				if( !empty( $result ) )
+					$p->module['extra_info'][ $p->action ] = $result;
+			}
+
 			array_walk_recursive( $p->module['extra_info'][ $p->action ], $make, $p );
 
 			$p->module['extra_info'][ $p->action ] = $call_submodule_recursive( $p->module['extra_info'][ $p->action ], $p );
+
+
 
 			$p->output['extra'] = $p->module['extra_info'][ $p->action ];
 		}
@@ -1023,6 +1043,7 @@ class Api2Db_Actions
 
 		}
 	
+		return true;
 
 	}
 
@@ -1375,6 +1396,8 @@ class Api2Db_Actions
 				$options = $p->module['fields'][$key]['options'];
 
 			}else if( is_string( $p->module['fields'][$key]['options'] ) ){
+
+
 
 				$sql = $this->Api2Db->functions->put_values( $p->module['fields'][$key]['options'], $p->putvalues);
 
