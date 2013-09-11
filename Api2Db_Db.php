@@ -119,11 +119,6 @@ class Api2Db_Db
 
 		if( empty( $this->currentConnection ) )
 			return false;
-
-		$sqlmd5 = md5( $sql );
-
-		if( isset( $this->sqlcache[ $sqlmd5 ] ) )
-			return $this->sqlcache[ $sqlmd5 ];
 		
 
 		$sql 	= $this->currentConnection->prepare( $sql );
@@ -148,27 +143,32 @@ class Api2Db_Db
 
 		$this->storage->push_debug_db( $log );
 
-		if( isset( $log['error'] ) ){
-			
+		if( isset( $log['error'] ) )
 			return false;
-		
-		}else{
-
-			$this->sqlcache[ $sqlmd5 ] = $sql;
+		else
 			return $sql;
 		
-		}
+		
 	}
 
 
 	final public function select( $sql, $whence ){
 
 
+		$sqlmd5 = md5( $sql );
+
+		if( !empty( $this->sqlcache[ $sqlmd5 ] ) )
+			return $this->sqlcache[ $sqlmd5 ];
+
 		$sql = $this->execute( $sql, $whence );
 
-		if( !empty( $sql ) )
-			return $sql->fetchAll( PDO::FETCH_ASSOC );
-		else
+		if( !empty( $sql ) ){
+
+			$result 					= $sql->fetchAll( PDO::FETCH_ASSOC );
+			$this->sqlcache[ $sqlmd5 ] 	= $result;	
+
+			return $result;
+		}else
 			return false;
 
 	}

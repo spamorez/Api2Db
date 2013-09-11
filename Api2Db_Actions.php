@@ -77,7 +77,7 @@ class Api2Db_Actions
 				$this->make_submodules( $p );
 			}
 
-//			$p->output['request'] = $p->input;
+			
 
 			return true;
 		}else
@@ -396,10 +396,10 @@ class Api2Db_Actions
 
 					$convert_name = $fieldval['convert']['add'];
 
-					if( !empty( $p->input['defrec'][$field] ) && !empty($convert_name) ){
+					if( !empty( $p->input['add'][$field] ) && !empty($convert_name) ){
 
 						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
-							$convertval = $this->Api2Db->converts->{ $convert_name }( $p->input['defrec'][$field]  );
+							$convertval = $this->Api2Db->converts->{ $convert_name }( $p->input['add'][$field]  );
 
 						if( isset( $convertval ) ) {
 				   			$p->values[$field] = $convertval;
@@ -495,7 +495,27 @@ class Api2Db_Actions
 
 			if( !$this->make_values( $p ) )
 				return false;
-				
+			
+			foreach( $p->module['fields'] as $field => $fieldval ) {
+
+				if( !empty( $fieldval['convert']['save'] ) ){
+
+					$convert_name = $fieldval['convert']['save'];
+
+					if( !empty( $p->input['save'][$field] ) && !empty($convert_name) ){
+
+						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
+							$convertval = $this->Api2Db->converts->{ $convert_name }( $p->input['save'][$field]  );
+
+						if( isset( $convertval ) ) {
+				   			$p->values[$field] = $convertval;
+				   		}
+
+					}
+				}
+			}
+
+
 			if( !$this->check_row( $p, $p->values, 'save' ) )
 				return false;
 
@@ -639,7 +659,7 @@ class Api2Db_Actions
 		foreach( $p->module['fields'] as $field => $fieldval ) {
 
 
-			if( empty( $values[$field] ) )
+			if( !isset( $values[$field] ) )
 				$value = '';
 			else
 				$value = $values[$field];
@@ -651,6 +671,11 @@ class Api2Db_Actions
 				'values' => (array)$values 
 			];
 
+
+			if( isset( $values[$field] ) )
+				$arg['isset'] = true;
+			else
+				$arg['isset'] = false;
 
 			if( isset($p->module['fields'][$field]['check'][$type]) )
 					$arg['checks'] = $p->module['fields'][$field]['check'][$type];
@@ -1011,10 +1036,12 @@ class Api2Db_Actions
 			else
 				$filters = [];
 
-
+			$filter = [];
 
 			foreach ( $filters as $key ) {
 				
+
+
 				if( !isset( $p->module['fields'][ $key ] ) )
 					continue;
 
@@ -1026,6 +1053,8 @@ class Api2Db_Actions
 
 				$sql 	= '';
 				$filter = $p->module['fields'][ $key ]['filter'];
+
+
 
 				if( isset( $filter['type'] ) ){
 					
@@ -1058,9 +1087,12 @@ class Api2Db_Actions
 				$sql = $this->Api2Db->functions->put_values( $sql , array_merge( $p->putvalues, ['this' => $this_values] ) );
 
 
-				$where[$key."_filter"] = $sql;
+				$filter_out[] = $sql;
 			}
 	
+			if( !empty( $filter_out ) ){
+				$where['filter'] = 'or ( '.implode( ' and ', $filter_out ).' )';
+			}
 
 		}
 
@@ -1097,10 +1129,13 @@ class Api2Db_Actions
 
 				$sql = $this->Api2Db->functions->put_values( $sql , array_merge( $p->putvalues, ['this' => $this_values] ) );
 
-				if( count($where) > 0 )
-					$where[$key."_search"] = " or ".$sql;
-				else
-					$where[$key."_search"] = " and ".$sql;
+				
+				$search_out[] = $sql;
+				
+			}
+
+			if( !empty( $search_out ) ){
+				$where['filter'] = 'and ( '.implode( ' or ', $search_out ).' )';
 			}
 	
 
@@ -1312,13 +1347,16 @@ class Api2Db_Actions
 				if( !empty( $p->module['fields'][$key]['convert']['*'] ) )
 					$convert_name_by_all = $p->module['fields'][$key]['convert']['*'];
 
-				if( isset( $convert_name_by_action ) and isset( $row[$key]['val'] )  )	{
+
+
+				if( !empty( $convert_name_by_action ) )	{
 
 					if( method_exists( $this->Api2Db->converts,  $convert_name_by_action ) )
 						$convert = $this->Api2Db->converts->{ $convert_name_by_action }( $row[$key], $p->make_row  );
 
 
-				} elseif( isset( $convert_name_by_all ) and isset( $row[$key]['val'] ) )	{
+				} elseif( !empty( $convert_name_by_all )  )	{
+
 
 					if( method_exists( $this->Api2Db->converts,  $convert_name_by_all ) )
 						$convert = $this->Api2Db->converts->{ $convert_name_by_all }( $row[$key], $p->make_row  );		
@@ -1572,7 +1610,7 @@ class Api2Db_Actions
 
 		} // if( isset($params->module['fields']
 		
-		if( isset( $p->input['filters'] ) )
+		if( isset( $p->input['filter'] ) )
 			$p->output['filters'] = $search;
 	}
 
