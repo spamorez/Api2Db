@@ -1091,7 +1091,7 @@ class Api2Db_Actions
 			}
 	
 			if( !empty( $filter_out ) ){
-				$where['filter'] = 'or ( '.implode( ' and ', $filter_out ).' )';
+				$where['filter'] = 'and ( '.implode( ' and ', $filter_out ).' )';
 			}
 
 		}
@@ -1571,6 +1571,10 @@ class Api2Db_Actions
 					
 					$search[$key]['key'] 	= $key;
 					$search[$key]['name'] 	= $key;
+
+					if( isset( $p->input['filters'] ) )
+					if( !empty( $p->input['filters'][$key] ) )
+						$search[$key]['val'] 	= $p->input['filters'][$key];
 				
 					if( isset( $keyval['name'] ) ) 
 						$search[$key]['name'] = $keyval['name'];
