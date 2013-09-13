@@ -1367,7 +1367,7 @@ class Api2Db_Actions
 				if( !empty( $convert ) )
 					$row[$key] = $convert;
 			
-				$extend_row	= (array) $this->make_extend_row( $key, $p );
+				$extend_row	= (array) $this->make_extend_row( $key, $p, $val );
 				$row[$key]	= array_merge( (array) $row[$key], $extend_row );
 
 
@@ -1434,7 +1434,8 @@ class Api2Db_Actions
 
 	}
 
-	private function make_extend_row( $key, $p ){
+	private function make_extend_row( $key, $p, $val = false ){
+
 
 		$row = [];
 
@@ -1455,7 +1456,7 @@ class Api2Db_Actions
 					
 						case 'select':
 					
-							$row['options'] = $this->make_key_options( $key, $p );
+							$row['options'] = $this->make_key_options( $key, $p, $val );
 					
 						break;
 					
@@ -1473,8 +1474,9 @@ class Api2Db_Actions
 
 	}
 
-	private function make_key_options( $key, $p ){
+	private function make_key_options( $key, $p, $rowvalue = false ){
 		
+
 		$options = [];
 
 		if( isset( $p->module['fields'][$key]['options'] )  ) {
@@ -1500,9 +1502,13 @@ class Api2Db_Actions
 
 			}else if( is_string( $p->module['fields'][$key]['options'] ) ){
 
+				$this_values = [
+					'value' => $rowvalue
+				];
+	
 
 
-				$sql = $this->Api2Db->functions->put_values( $p->module['fields'][$key]['options'], $p->putvalues);
+				$sql = $this->Api2Db->functions->put_values( $p->module['fields'][$key]['options'], array_merge( $p->putvalues, ['this' => $this_values] ));
 
 
 				$result = $this->db->select( $sql, 'create_options_to_key_'.$key );
