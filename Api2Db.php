@@ -45,7 +45,7 @@ class Api2Db {
 		$this->storage->add_names( $params['names'] );
 		$this->storage->add_errors( $params['errors'] );
 		
-		$this->db 		= Api2Db_Db::Instance();
+		$this->db = Api2Db_Db::Instance();
 		$this->db->clear( $this );
 		$this->db->connect();
 
@@ -73,6 +73,8 @@ class Api2Db {
 			$this->actions = new  Api2Db_Actions( $this );
 
 
+		if( is_object( $params['triggers'] ) )
+			$this->triggers = $params['triggers'];
 
 	}
 

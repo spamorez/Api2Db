@@ -68,7 +68,18 @@ class Api2Db_Actions
 
 		if( $this->{ 'action_' . $p->action }( $p ) ){
 
+			if( isset( $this->Api2Db->triggers ) ){
 
+				if( !empty( $p->module['triggers'][ $p->action ] ) ){
+
+					$trigger = $p->module['triggers'][ $p->action ];
+
+					if( method_exists( $this->Api2Db->triggers, $trigger ) )
+						$this->Api2Db->triggers->{ $trigger }( $p );
+
+				}
+
+			}
 
 			$this->make_extra_info( $p );
 
@@ -76,6 +87,7 @@ class Api2Db_Actions
 				
 				$this->make_submodules( $p );
 			}
+
 
 			
 
@@ -648,6 +660,8 @@ class Api2Db_Actions
 		}else
 			return true;
 
+		return true;
+
 	}
 
 	private function check_row( $p, $values, $type ){
@@ -699,7 +713,7 @@ class Api2Db_Actions
 
 			
 			if( !$this->check_field_by_value( $fld, $arg ) )
-				$errors[$field]['errors'] = $fld->errors;
+				$errors[$field] = $fld->errors;
 
 			unset($fld->ret);
 			unset($fld->errors);
