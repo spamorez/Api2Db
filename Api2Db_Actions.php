@@ -343,7 +343,7 @@ class Api2Db_Actions
 		$result = $this->db->select( $p->db['lastQuery'], 'action_view' );
 		
 		if( empty( $result ) ){
-			$p->error = 'dberror';
+			$p->error = 'notfound';
 			return false;
 		}else{
 			$p->db['lastResult'] = $result;
