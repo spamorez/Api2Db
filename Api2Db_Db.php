@@ -18,6 +18,7 @@ class Api2Db_Db
 	private $currentConnection;
 	private $currentConnectionName;
 	private $currentDB;
+	private $currentConnectionType;
 	private $sqlcache 			= [];
 
 	private function __construct(){
@@ -37,6 +38,8 @@ class Api2Db_Db
 	}
 
 
+
+
 	final public function connect( $name_connect = false ){
 
 
@@ -49,7 +52,7 @@ class Api2Db_Db
 
 		if( !empty( $db_conf['connections'][ $name_connect ]['type'] ) ){
 
-			if( in_aray( $db_conf['connections'][ $name_connect ]['type'], ['mysql','oracle'] ) )
+			if( in_array( $db_conf['connections'][ $name_connect ]['type'], ['mysql','oracle'] ) )
 				$db_type = $db_conf['connections'][ $name_connect ]['type'];
 		}
 
@@ -57,11 +60,55 @@ class Api2Db_Db
 
 		if( !empty( $this->storage->get_config()['db']['connections'][ $name_connect ] ) ){
 
-			switch ( $db_type ) {
-				case 'mysql':
-					return $this->connect_mysql( $db_conf['connections'][ $name_connect ], $name_connect );
-					break;
+			try{
+
+				$config = $this->storage->get_config()['db']['connections'][ $name_connect ] ;
+
+				if( $db_type == 'oracle '){
+					$connect = 'oci:dbname='.$config['server'].'/'.$config['database'];
+					
+
 				
+				}elseif( $db_type == 'mysql' ){
+					$connect = 'mysql:host=' . $config['server'] . ';dbname=' . $config['database'];
+				}
+
+				if( isset( $config['charset'] ) )
+					$connect .= ';charset='.$config['charset'];
+
+				if( !isset( $config['attr'] ) )
+					$config['attr'] = [];
+
+
+				$this->connections[$name_connect] = new PDO(
+					$connect,
+					$config['user'],
+					$config['password'],
+					$config['attr']
+				);
+
+				$this->currentDB							 					= $config['database'];
+				$this->currentConnectionName									= $name_connect;
+				$this->currentConnection										= &$this->connections[$name_connect];
+				$this->storage->push_debug_db("create connect $name_connect");
+
+				if( isset( $config['querys'] ) )
+					foreach ($config['querys'] as $query) {
+						$this->currentConnection->query( $query );
+					}
+
+				return true;
+			}
+
+			catch( PDOException $e ){
+
+				$this->storage->push_debug_db( [
+					'error' => ['message' => $e->getMessage(), 'code' => $e->getCode()],
+					'text' 	=> "Failed connection to $name_connect"
+				]);
+
+
+				return false;
 			}
 
 		}
@@ -80,10 +127,7 @@ class Api2Db_Db
 			try{
 
 				$this->connections[$name_connect] = new PDO ( 
-					'mysql:host=' . $config['server'] . ';dbname=' . $config['database'], $config['user'], $config['password'],
-					[
-						PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
-					]
+					'mysql:host=' . $config['server'] . ';dbname=' . $config['database'], $config['user'], $config['password'], $config['attr']
 				);
 				
 
@@ -91,6 +135,11 @@ class Api2Db_Db
 				$this->currentConnectionName									= $name_connect;
 				$this->currentConnection										= &$this->connections[$name_connect];
 				$this->storage->push_debug_db("create connect $name_connect");
+
+				if( isset( $config['querys'] ) )
+					foreach ($config['querys'] as $query) {
+						$this->currentConnection->query( $query );
+					}
 
 				return true;
 			}
@@ -113,6 +162,54 @@ class Api2Db_Db
 		return true;
 
 	}
+
+
+	final public function connect_oracle( $config, $name_connect ){
+		
+
+
+		// Создание коннекта
+		if( empty( $this->connections[$name_connect] ) ){
+
+			try{
+
+				$this->connections[$name_connect] = new PDO(
+					'oci:dbname='.$config['server'].'/'.$config['database'].';charset=AL32UTF8',
+					$config['user'],
+					$config['password'],
+					$config['attr']
+				);
+
+				$this->currentDB							 					= $config['database'];
+				$this->currentConnectionName									= $name_connect;
+				$this->currentConnection										= &$this->connections[$name_connect];
+				$this->storage->push_debug_db("create connect $name_connect");
+
+				if( isset( $config['querys'] ) )
+					foreach ($config['querys'] as $query) {
+						$this->currentConnection->query( $query );
+					}
+
+				return true;
+			}
+
+			catch( PDOException $e ){
+
+				$this->storage->push_debug_db( [
+					'error' => ['message' => $e->getMessage(), 'code' => $e->getCode()],
+					'text' 	=> "Failed connection to $name_connect"
+				]);
+
+
+				return false;
+			}
+
+		}
+
+		return true;
+
+	}
+
 
 
 	final public function execute( $sql, $whence ){
@@ -164,7 +261,7 @@ class Api2Db_Db
 
 		if( !empty( $sql ) ){
 
-			$result 					= $sql->fetchAll( PDO::FETCH_ASSOC );
+			$result 					= @$sql->fetchAll( PDO::FETCH_ASSOC );
 			$this->sqlcache[ $sqlmd5 ] 	= $result;	
 
 			return $result;
