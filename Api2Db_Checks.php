@@ -88,7 +88,7 @@ class Api2Db_Checks
 
 	final public function single_empty_value( $arg ){
 		
-		if( empty($arg['value']) and $arg['isset'] )
+		if( mb_strlen($arg['value']) == 0 and $arg['isset'] )
 			return array( 'error' => 'empty_value' );
 		else
 			return true;
