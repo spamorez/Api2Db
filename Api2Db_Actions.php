@@ -197,7 +197,7 @@ class Api2Db_Actions
 				foreach ($arr as $key => $val) {
 					
 
-					if( isset( $val['type'] ) ){
+					if( isset( $val['type'] ) and isset( $val[ $p->action ] )){
 
 						if( $val['type'] == 'subquery' && is_array( $val[ $p->action ] ) ){
 							
@@ -296,7 +296,7 @@ class Api2Db_Actions
 			return false;
 
 		// Совершаем запрос
-		$result = $this->db->select( $p->db['lastQuery'], 'action_list' );
+		$result = $this->db->select( $p->db['lastQuery'], 'action_list_'.$p->module['modname']  );
 		
 		if( empty( $result ) ){
 			$p->error = 'dberror';
@@ -318,7 +318,7 @@ class Api2Db_Actions
 
 
 		$p->db['request']['query']	= 'select';
-		$p->db['request']['limit']  = '1';
+		$p->db['request']['limit']  = '0';
 
 
 		$this->make_heads( $p );
@@ -340,7 +340,7 @@ class Api2Db_Actions
 			return false;
 
 		// Совершаем запрос
-		$result = $this->db->select( $p->db['lastQuery'], 'action_view' );
+		$result = $this->db->select( $p->db['lastQuery'], 'action_view_'.$p->module['modname'] );
 		
 		if( empty( $result ) ){
 			$p->error = 'notfound';
@@ -369,6 +369,12 @@ class Api2Db_Actions
 
 	final public function action_add( $p ){
 
+		if( !isset( $p->module['sequence'] ) ){
+
+			$p->error = "sequence_not_defined";
+			return false;
+		
+		}
 
 
 		if( !$p->module['actions'][ $p->action ] ){
@@ -426,26 +432,36 @@ class Api2Db_Actions
 			if( !$this->check_row( $p, $p->values, 'add' ) )
 				return false;
 
-
-
-			if( !$this->make_set( $p ) )
+			if( !$this->make_filelds_and_values( $p ) )
 				return false;
 
 			if( !$this->make_sql_str( $p ) )
 				return false;
 
 			
-			// Совершаем запрос
-			$id = $this->db->insert( $p->db['lastQuery'], 'action_add' );
-			
-			if( empty( $id ) ){
+
+			if( !$this->db->insert( $p->db['lastQuery'], 'action_add_'.$p->module['modname']  ) ){
 
 				$p->error = 'dberror';
 				return false;
 
 			}else{
 
-				$p->output['recordId'] = $id;
+				$seq = $p->module['sequence'];
+
+				$result_to_id = $this->db->select("select $seq.currval from dual",'action_add_'.$p->module['modname'] );
+
+				if( empty( $result_to_id ) ){
+				
+					$p->error = 'dberror';
+					return false;
+				
+				}
+
+				$id = $result_to_id[0]['currval'];
+
+				$p->output['recordId'] = $result_to_id[0]['currval'];
+				
 				return true;
 		
 			}
@@ -832,8 +848,7 @@ class Api2Db_Actions
 
 		$request = [
 			'query' 	=> 'select',
-			'fields'	=> [ 'count(*) as count' ],
-			'limit' 	=> '1000',
+			'fields'	=> [ 'count(*) as count'],
 			'order' 	=> '',
 			'where' 	=> $p->db['request']['where'],
 		];
@@ -844,7 +859,7 @@ class Api2Db_Actions
 
 
 		// Совершаем запрос
-		$result = $this->db->select( $p->db['lastQuery'], 'get_records' );
+		$result = $this->db->select( $p->db['lastQuery'], 'get_records_'.$p->module['modname']  );
 		
 		if( empty( $result ) ){
 			$p->error = 'dberror';
@@ -935,6 +950,53 @@ class Api2Db_Actions
 		return true;
 	}
 
+	final public function make_filelds_and_values( $p ){
+
+		if( !empty( $p->values ) ){
+
+
+
+			foreach( $p->values as $key => $val ){
+
+				$field = $p->module['fields'][$key];
+
+				if( !empty( $field ) ){
+
+					if( isset( $field['key'] ) ){
+
+						$key = $field['key'];
+						$ex_key = explode(".", $key);
+
+						if( count( $ex_key ) == 2 ){
+							$key = $ex_key[1];
+							$p->output['tmp'][] = $key;
+						}
+						
+					}
+					$fields_keys[] = $key;
+					$fields_values[] = "'".$this->Api2Db->functions->sql_escape( $val ) ."'";
+
+
+				}
+			}
+
+
+			$p->db['request']['fields_keys'] = $fields_keys;
+			$p->db['request']['values'] = $fields_values;
+
+			
+			$p->output['request'] = $p->db['request'];
+
+		}else{
+
+			$p->error = 'nothing_' . $p->action;
+			return false;
+
+		}
+
+		return true;
+	}
+
 
 	final public function make_set( $p ){
 
@@ -956,7 +1018,7 @@ class Api2Db_Actions
 						
 					}
 
-					$fields_sql[] = $key . '="' . $this->Api2Db->functions->sql_escape( $val )  . '"';
+					$fields_sql[] = $key . "='" . $this->Api2Db->functions->sql_escape( $val )  . "'";
 
 				}
 			}
@@ -1022,7 +1084,7 @@ class Api2Db_Actions
 
 	private function make_where( $p ){
 
-		$p->db['request']['where'] = ['1' => ' 1 '];
+		$p->db['request']['where'] = ['1' => ' 1=1 '];
 
 		if( !$this->extend_make_where( $p ) )
 			return false;
@@ -1073,10 +1135,10 @@ class Api2Db_Actions
 				if( isset( $filter['type'] ) ){
 					
 					if( $filter['type'] == 'like' )
-						$sql = ':this->key like "%:this->value%"';
+						$sql = ":this->key like '%:this->value%'";
 
 					if( $filter['type'] == 'key' )
-						$sql = ':this->key=":this->value"';
+						$sql = ":this->key=':this->value'";
 				}
 
 				if( !empty( $filter['sql'] ) ){
@@ -1126,7 +1188,7 @@ class Api2Db_Actions
 					continue;
 
 
-				$sql = ':this->key like "%:this->value%"';
+				$sql = ":this->key like '%:this->value%'";
 
 
 				if( isset( $p->module['fields'][ $key ]['key'] ) ){
@@ -1209,7 +1271,7 @@ class Api2Db_Actions
 			return false;
 		}
 
-
+		$outfields['limit'] = 'ROWNUM as limit';
 
 
 		$p->db['request']['fields'] = $outfields;
@@ -1277,12 +1339,16 @@ class Api2Db_Actions
 			
 			}else{
 		
-				$limit 	= [ $start, $perpage ];
+				$limit 	= [ $start, $start+$perpage ];
+
+
 				$page 	= $p->input['page'];		
 		
 			}
 		
 		}
+
+
 
 		// Ставим в вывод
 		$p->output['perpage']		= $perpage;
@@ -1348,7 +1414,10 @@ class Api2Db_Actions
 					"'" => '&apos;'
 				];	
 
-				$row[$key]['val'] = strtr( $val, $quot );
+				if( is_string( $val ) )
+					$row[$key]['val'] = strtr( $val, $quot );
+				else
+					$row[$key]['val'] = $val;
 				
 				$convert_name_by_action = '';
 				$convert_name_by_all 	= '';
@@ -1676,11 +1745,11 @@ class Api2Db_Actions
 			
 			$structure	 = [
 				'table'		=> 'into',
-				'set'		=> 'set',
-
+				'fields_keys' 	=>  ['sheath' => ' ({replace}) '],
+				'values'	=> ['sheath' => ' values({replace}) '],
 			];
 
-			$requred = [ 'set', 'table' ];
+			$requred = [ 'values', 'table', 'fields' ];
 		
 		
 		}elseif( $request['query'] == 'delete' ) {
@@ -1711,20 +1780,34 @@ class Api2Db_Actions
 
 
 
-		$toSql = '';
+		$toSql = $request['query'] . ' ';
 
 		foreach( $structure as $sqlElem => $elemParam ){
 
-			if( is_string( $elemParam ) ){
-				$implode = ', ';
-				$prefix = $elemParam;
-			}else{
-				$prefix = $elemParam['prefix'];
-				$implode = $elemParam['implode'];
-			}
+			if( $sqlElem == 'limit' )
+				continue;
 
-
+			$prefix = '';
+			$implode = ', ';
 			$value = '';
+			$sheath = false;
+
+			if( is_string( $elemParam ) ){
+
+				$prefix = $elemParam;
+			
+			}else{
+
+				if( isset( $elemParam['sheath']) )
+					$sheath = $elemParam['sheath'];
+
+				if( isset( $elemParam['prefix']) )
+					$prefix = $elemParam['prefix'];
+
+				if( isset( $elemParam['implode'] ) )
+					$implode = $elemParam['implode'];
+			
+			}
 
 
 			if( in_array( $sqlElem, $requred ) and !isset( $request[ $sqlElem ] ) ){
@@ -1733,6 +1816,8 @@ class Api2Db_Actions
 					'error' 	=> 'requred_sqlElem',
 					'element' 	=> $sqlElem,
 				]);
+
+				$p->error = 'dberror';
 
 				return false;
 
@@ -1763,14 +1848,31 @@ class Api2Db_Actions
 			elseif( is_int( $request[ $sqlElem ] ) or is_string( $request[ $sqlElem ] ) )
 				$value = $request[ $sqlElem ];
 
+			if( $sheath ){
+				$value = str_replace('{replace}', $value, $sheath);
+			}
+
+
 			if( $value )
 				$toSql .= " $prefix " . $value;
 
 			
 		}
 
+		if( isset( $structure['limit'] ) and isset( $request['limit'] ) ){
+			if( !isset( $request['limit'][1] ) )
+				$request['limit'][1] = 2;
 
-		$p->db['lastQuery'] = $this->Api2Db->functions->put_values( $request['query'] . " " . $toSql, $p->putvalues );
+			if( $request['limit'][0] != 0 )
+				$limit = "limit > {$request['limit'][0]} and limit <= {$request['limit'][1]} ";
+			else
+				$limit = "limit >= {$request['limit'][0]} and limit <= {$request['limit'][1]} ";
+
+			$toSql = "SELECT * from ($toSql) WHERE $limit";
+		}
+
+
+		$p->db['lastQuery'] = $this->Api2Db->functions->put_values( $toSql, $p->putvalues );
 
 
 		return true;

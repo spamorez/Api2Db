@@ -64,7 +64,7 @@ class Api2Db_Db
 
 				$config = $this->storage->get_config()['db']['connections'][ $name_connect ] ;
 
-				if( $db_type == 'oracle '){
+				if( $db_type == 'oracle'){
 					$connect = 'oci:dbname='.$config['server'].'/'.$config['database'];
 					
 
@@ -216,36 +216,51 @@ class Api2Db_Db
 
 		if( empty( $this->currentConnection ) )
 			return false;
-		
 
-		$sql 	= $this->currentConnection->prepare( $sql );
-		$start 	= microtime(true);
+		$sqldef = $sql;
 
-		$sql->execute();
-		
-		$time 	= round( microtime(true)-$start, 2 );
-		$errsql = $sql->errorInfo();
+		if( $sql 	= $this->currentConnection->prepare( $sql ) ){
 
-		$log 	= [
-			'sql' 			=> $sql->queryString,
-			'connection' 	=> $this->currentConnectionName,
-			'time' 			=> $time,
-			'code' 			=> $errsql[0],
-			'whence'		=> $whence
-		];
+			$start 	= microtime(true);
 
 
-		if( $errsql[0] != '00000')
-			$log['error'] = $errsql[2];
+			$sql->execute();
+			
+			$time 	= round( microtime(true)-$start, 2 );
+			$errsql = $sql->errorInfo();
 
-		$this->storage->push_debug_db( $log );
+			$log 	= [
+				'sql' 			=> $sql->queryString,
+				'connection' 	=> $this->currentConnectionName,
+				'time' 			=> $time,
+				'code' 			=> $errsql[0],
+				'whence'		=> $whence
+			];
 
-		if( isset( $log['error'] ) )
+
+			if( $errsql[0] != '00000')
+				$log['error'] = $errsql[2];
+
+			$this->storage->push_debug_db( $log );
+
+			if( isset( $log['error'] ) )
+				return false;
+			else
+				return $sql;
+			
+		}else{
+			
+			$log 	= [
+				'sql' 			=> $sqldef,
+				'connection' 	=> $this->currentConnectionName,
+				'code' 			=> 'undefined',
+				'whence'		=> $whence
+			];
+
+			$this->storage->push_debug_db( $log );
+			
 			return false;
-		else
-			return $sql;
-		
-		
+		}
 	}
 
 
@@ -287,8 +302,8 @@ class Api2Db_Db
 
 		$sql = $this->execute( $sql, $whence );
 
-		if( !empty( $sql ) )
-			return $this->currentConnection->lastInsertId();
+		if( $sql )
+			return true;
 		else
 			return false;
 

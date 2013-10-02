@@ -169,6 +169,7 @@ class Api2Db {
 	}
 
 	public function output_json(){
+
 		return json_encode( $this->output );
 	}
 
