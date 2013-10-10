@@ -358,8 +358,9 @@ class Api2Db_Actions
 		}else{
 
 			$this->make_heads( $p );
-			$p->output['rows'] = $rows[1];
-		
+			$p->output['rows'] = $p->putvalues['row'] = $rows[1];
+        
+
 		}
 
 		return true;
@@ -432,7 +433,7 @@ class Api2Db_Actions
 			if( !$this->check_row( $p, $p->values, 'add' ) )
 				return false;
 
-			if( !$this->make_filelds_and_values( $p ) )
+			if( !$this->make_fields_and_values( $p ) )
 				return false;
 
 			if( !$this->make_sql_str( $p ) )
@@ -950,10 +951,9 @@ class Api2Db_Actions
 		return true;
 	}
 
-	final public function make_filelds_and_values( $p ){
+	final public function make_fields_and_values( $p ){
 
 		if( !empty( $p->values ) ){
-
 
 
 			foreach( $p->values as $key => $val ){
@@ -979,6 +979,13 @@ class Api2Db_Actions
 
 				}
 			}
+
+            if( !empty( $p->module['actions'][$p->action]['set'] ) ){
+                foreach( $p->module['actions'][$p->action]['set']  as $key => $val){
+                    $fields_keys[] = $key; 
+                    $fields_values[] = $this->Api2Db->functions->put_values( $val, $p->putvalues );
+                }
+            }
 
 
 			$p->db['request']['fields_keys'] = $fields_keys;
@@ -1422,6 +1429,19 @@ class Api2Db_Actions
 				$convert_name_by_action = '';
 				$convert_name_by_all 	= '';
 				$convert 				= '';
+    
+                $extend_row	= (array) $this->make_extend_row( $key, $p, $val );
+				$row[$key]	= array_merge( (array) $row[$key], $extend_row );
+
+
+
+				if(  $p->input['rowheads']  ) {
+				
+					$heads 		= (array) $this->make_head_row( $key, $p );
+					$row[$key]	= array_merge( (array) $row[$key], $heads );
+
+				}
+
 
 				// Конвертация вывода
 				if( !empty( $p->module['fields'][$key]['convert'][$p->action] ) )
@@ -1450,19 +1470,7 @@ class Api2Db_Actions
 				if( !empty( $convert ) )
 					$row[$key] = $convert;
 			
-				$extend_row	= (array) $this->make_extend_row( $key, $p, $val );
-				$row[$key]	= array_merge( (array) $row[$key], $extend_row );
-
-
-
-				if(  $p->input['rowheads']  ) {
-				
-					$heads 		= (array) $this->make_head_row( $key, $p );
-					$row[$key]	= array_merge( (array) $row[$key], $heads );
-
-				}
-
-
+	
 			}
 		}
 
