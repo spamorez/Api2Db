@@ -193,6 +193,10 @@ class Api2Db_Storage
 		return $this->debug;
 	}
 
+	final public function get_last_db_error(){
+		return $this->debug['db'][  count($this->debug['db'])-1 ];
+	}
+
 
 	final public function get_debug_db(){
 		return $this->debug['db'];

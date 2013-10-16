@@ -28,6 +28,8 @@ class Api2Db {
 			'checks'	=> ''
 		];
 
+        $this->Api2DbPath = dirname(__FILE__) . '/'; 
+
 		$this->storage 	= Api2Db_Storage::Instance();
 
 		$params 		= array_replace_recursive( $def_params, $params );
@@ -195,5 +197,20 @@ class Api2Db {
 		return $this;
 	
 	}
+
+
+    final public function log_to_file( $filename, $content ){
+
+        if( !$this->storage->get_config()['logs'] )
+            return false;
+
+        $logpath = $this->Api2DbPath . $this->storage->get_config()['logpath'];
+
+        if( !file_exists( $logpath ) )
+            mkdir( $logpath, 0777 );
+
+        file_put_contents( $logpath . '/' . $filename, $content, FILE_APPEND );
+
+    }
 
 }
