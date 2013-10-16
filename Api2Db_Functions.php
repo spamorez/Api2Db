@@ -158,8 +158,8 @@ class Api2Db_Functions
 		
 		$p = '/^([0-9]{2})[\.-]([0-9]{2})[\.-]([0-9]{2,4}';
 		$p .= '$/ix';
-		
-		return preg_match( $p, $date );  
+	    # rewrite	
+		return @preg_match( $p, $date );  
 	}
 
 
