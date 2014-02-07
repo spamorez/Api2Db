@@ -889,28 +889,25 @@ class Api2Db_Actions
 		if( $fields == 'all' )
 			$fields = array_keys( $p->module['fields'] );
 
-
 		foreach( $fields as $field ) {
 
 			$fieldval = $p->module['fields'][$field];
+
 
 			if( !isset( $fieldval['edit'] ) )
 					continue;
 
 
-
 			if( !empty( $fieldval ) && !in_array( $field, $exclude ) ){
-
-
 
 				if( !empty( $fieldval['convert'][ $p->action ] ) ){
 
 					$convert_name = $fieldval['convert'][ $p->action ];
 
-					if( !empty( $p->input[$field][ $p->action ] ) && !empty($convert_name) ){
+					if( !empty( $p->input[ $p->action ][ $field ] ) && !empty($convert_name) ){
 
 						if( method_exists( $this->Api2Db->converts,  $convert_name ) )
-							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[$field][ $p->action ]  );
+							$convertval = $this->Api2Db->converts->{ 'add_' . $convert_name }( $p->input[ $p->action ][ $field ]  );
 
 						if( isset( $convertval ) ) 
 				   			$p->values[$field] = $convertval;
@@ -919,7 +916,6 @@ class Api2Db_Actions
 					}
 				
 				}else{
-
 					if( isset( $p->input[ $p->action ][ $field ] ) )
 						$p->values[$field] = $p->input[ $p->action ][ $field ];
 				//	else
@@ -929,9 +925,7 @@ class Api2Db_Actions
 			}
 		}
 
-
-
-
+	
 		return true;
 	}
 
