@@ -65,17 +65,39 @@ class Api2Db_Actions
 		}
 
 
+		if( isset( $this->Api2Db->triggers ) ){
+
+			if( !empty( $p->module['triggers'][ $p->action ]['before'] ) ){
+
+				$trigger = $p->module['triggers'][ $p->action ]['before'];
+
+				if( method_exists( $this->Api2Db->triggers, $trigger ) )
+					if( !$this->Api2Db->triggers->{ $trigger }( $p, $this->Api2Db ) ){
+						$p->error = 'problem_in_trigger_before_'.$trigger;
+						return false;
+					}
+
+			}
+
+		}
+
+
 
 		if( $this->{ 'action_' . $p->action }( $p ) ){
 
 			if( isset( $this->Api2Db->triggers ) ){
 
-				if( !empty( $p->module['triggers'][ $p->action ] ) ){
 
-					$trigger = $p->module['triggers'][ $p->action ];
+
+				if( !empty( $p->module['triggers'][ $p->action ]['after'] ) ){
+
+					$trigger = $p->module['triggers'][ $p->action ]['after'];
 
 					if( method_exists( $this->Api2Db->triggers, $trigger ) )
-						$this->Api2Db->triggers->{ $trigger }( $p );
+						if( !$this->Api2Db->triggers->{ $trigger }( $p, $this->Api2Db ) ){
+							$p->error = 'problem_in_trigger_after_'.$trigger;
+							return false;
+						}
 
 				}
 
@@ -89,11 +111,13 @@ class Api2Db_Actions
 			}
 
 
-			
-
 			return true;
-		}else
+		}else{
+
+			if( empty($p->error) )
+				$p->error = 'problem_in_action';
 			return false;
+		}
 	}
 
 
@@ -633,6 +657,9 @@ class Api2Db_Actions
 		if( !$this->make_where( $p ) ) 
 			return false;
 
+		// Запрос результата который будет удаляться
+		if( !$this->get_record( $p ) )
+			return false;
 
 		// Запрос общего количества из БД
 		if( !$this->get_records( $p ) )
@@ -663,6 +690,8 @@ class Api2Db_Actions
 		return true;
 
 	}
+
+
 
 	private function check_row( $p, $values, $type ){
 
@@ -822,9 +851,47 @@ class Api2Db_Actions
 	private function purge_data( $p ){
 		
 		$p->db = [];
-		unset($p->values, $p->records);
+		unset($p->values, $p->records, $p->record);
 	
 	}
+
+	private function get_record( $p ){
+		
+
+		$request = [
+			'query' 	=> 'select',
+			'fields'	=> [ '*' ],
+			'limit' 	=> '1000000',
+			'order' 	=> '',
+			'where' 	=> $p->db['request']['where'],
+		];
+
+
+		if( !$this->make_sql_str( $p, $request ) ) 
+			return false;
+
+
+		// Совершаем запрос
+		$result = $this->db->select( $p->db['lastQuery'], 'get_record' );
+		
+		if( is_bool($result) ){
+		
+			if(  !$result  ){
+				$p->error = 'dberror';
+
+				return false;
+			}
+		
+		}
+
+
+		$p->record = $result;
+
+
+
+		return true;
+	}
+
 
 
 	private function get_records( $p ){
@@ -846,9 +913,14 @@ class Api2Db_Actions
 		// Совершаем запрос
 		$result = $this->db->select( $p->db['lastQuery'], 'get_records' );
 		
-		if( empty( $result ) ){
-			$p->error = 'dberror';
-			return false;
+		if( is_bool($result) ){
+		
+			if(  !$result  ){
+				$p->error = 'dberror';
+
+				return false;
+			}
+		
 		}
 
 
@@ -1513,7 +1585,6 @@ class Api2Db_Actions
 				$this_values = [
 					'value' => $rowvalue
 				];
-	
 
 
 				$sql = $this->Api2Db->functions->put_values( $p->module['fields'][$key]['options'], array_merge( $p->putvalues, ['this' => $this_values] ));

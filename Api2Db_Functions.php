@@ -41,7 +41,23 @@ class Api2Db_Functions
 
 				if( is_array( $value ) ){
 
+					
+
 					$paths[":" . $add . "->array"] = $value;
+
+					if( ( count($value) - count($value, COUNT_RECURSIVE) ) !== true ){
+						
+						$tmpvalue = array_map(function($v){
+							if(!is_array($v))
+								return "'$v'";
+						},$value);
+
+						
+						$paths[":" . $add . "->explode"] = implode(",",$tmpvalue);
+						
+
+
+					}
 				
 					$paths = array_merge( $paths, $this->make_recurcive_path( $value, $add, $paths ) );
 				
@@ -51,6 +67,7 @@ class Api2Db_Functions
 						$value = addcslashes( trim( $value ), '\'"' );
 
 					$paths[":" . $add] = $value;
+					$paths[":" . $add . "->explode"] = '""';
 				}
 			}
 			

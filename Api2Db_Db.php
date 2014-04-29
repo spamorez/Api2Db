@@ -221,7 +221,7 @@ class Api2Db_Db
 		$sql 	= $this->currentConnection->prepare( $sql );
 		$start 	= microtime(true);
 
-		$sql->execute();
+		@$sql->execute();
 		
 		$time 	= round( microtime(true)-$start, 2 );
 		$errsql = $sql->errorInfo();
