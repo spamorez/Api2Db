@@ -25,7 +25,7 @@ class Api2Db_Functions
 
 		$arrayPathToValue = $this->make_recurcive_path( $values );
 
-		return strtr($string, $arrayPathToValue);
+		return @strtr($string, $arrayPathToValue);
 	}
 
 	final public function make_recurcive_path( $values, $path = '', $paths = [], $escape = true ){
